@@ -47,7 +47,7 @@ shinyServer(function(input,output) {
   }, sanitize.text.function = function(x) x, include.rownames=FALSE)
 
   #select and modify data used for levelplots and accompanying table
-  output.tableforplot <- eventReactive(input$updategraph,{
+  output.tableforplot <- reactive({
     
     #select data for the gene currently selected
     data_filter <- function(x){
@@ -95,7 +95,7 @@ shinyServer(function(input,output) {
   ## Levelplots ##
   ################
   output.tableforplot2 <- reactive({output.tableforplot() %>% rename(' '=Fold_Change, ' '=neglogofP)})
-  heatmapMAT <- eventReactive(input$updategraph,{output.tableforplot2()})
+  heatmapMAT <- reactive({output.tableforplot2()})
   
   plot_data_FC <- reactive({t(heatmapMAT()[5])})
   plot_data_pval <- reactive({test2 <- t(heatmapMAT()[6])})
@@ -114,9 +114,9 @@ shinyServer(function(input,output) {
     maxNLOP=1.5} else {maxNLOP=max(plot_data_pval())}})
   
   # levelplots output for fold change & log p-value
-  graphgene=eventReactive(input$updategraph,{curr_gene()})
+  graphgene=reactive({curr_gene()})
   
-  fc_plot <- reactive({print(levelplot(plot_data_FC(),
+  output$fc_plot <- renderPlot({levelplot(plot_data_FC(),
                                        col.regions=cols,
                                        xlab =NULL,
                                        ylab="GEO ID",
@@ -124,11 +124,9 @@ shinyServer(function(input,output) {
                                        aspect=2,
                                        scales=list(x=list(cex=1,rot=35,tck = c(0,0,0,0)),
                                                    y=list(tck = c(1,0,0,0))),
-                                       at=seq(minFC(), maxFC(), length.out=100)))})
+                                       at=seq(minFC(), maxFC(), length.out=100))})
   
-  output$fc_plot <- renderPlot(fc_plot())
-  
-  pval_plot <- reactive({ print(levelplot(plot_data_pval(),
+  output$pval_plot <- renderPlot({levelplot(plot_data_pval(),
                                           col.regions=cols,
                                           xlab =NULL,
                                           ylab="GEO ID",
@@ -136,9 +134,7 @@ shinyServer(function(input,output) {
                                           aspect=2,
                                           scales=list(x=list(cex=1,rot=35,tck = c(0,0,0,0)), 
                                                       y=list(tck = c(1,0,0,0))),
-                                          at=seq(minNLOP(), maxNLOP(),length.out=100)))})
-  
-  output$pval_plot <- renderPlot(pval_plot())
+                                          at=seq(minNLOP(), maxNLOP(),length.out=100))})
   
   ### download buttons for GEO data and levelplots
   output$fc_download <- downloadHandler(
