@@ -4,7 +4,7 @@ library(dplyr)
 library(lattice)
 library(stringr)
 library(RColorBrewer)
-library(shinythemes)
+
 
 # Load data
 Dataset_Info <- read.csv("databases/microarray_data_infosheet.csv")
