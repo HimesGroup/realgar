@@ -7,7 +7,7 @@ library(RColorBrewer)
 library(shinythemes)
 
 # Load data
-Dataset_Info <- read.csv("databases/microarray_data_infosheet_MS.csv")
+Dataset_Info <- read.csv("databases/microarray_data_infosheet.csv")
 Dataset_Info$Unique_ID <- apply(Dataset_Info[, c("GEO_ID", "Tissue", "Asthma")], 1, paste, collapse="_")
 for (i in Dataset_Info$Unique_ID){
     assign(i, fread(paste0("databases/microarray_results/", i,".csv"), sep=" "))}
