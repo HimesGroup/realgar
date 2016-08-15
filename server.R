@@ -5,7 +5,6 @@ library(lattice)
 library(stringr)
 library(RColorBrewer)
 
-
 # Load data
 Dataset_Info <- read.csv("databases/microarray_data_infosheet.csv")
 Dataset_Info$Unique_ID <- apply(Dataset_Info[, c("GEO_ID", "Tissue", "Asthma")], 1, paste, collapse="_")
@@ -15,13 +14,13 @@ output.table <- data.frame()
 Dataset_Info[is.na(Dataset_Info$PMID),"PMID"] <- ""
 
 # heatmap colors
-cols <-colorRampPalette(c("white","navyblue"))
+cols <-colorRampPalette(c("firebrick4","white","navyblue"))
 
 # Server
 shinyServer(function(input,output) {
   
   #reactive values
-  curr_gene=reactive({input$curr_gene})
+  curr_gene=reactive({toupper(input$curr_gene)})
   
   #######################
   ## GEO studies table ##
@@ -75,7 +74,8 @@ shinyServer(function(input,output) {
     
     #preparing the data for levelplots
     #calculate the Fold Change, order by Fold Change for levelplots
-    output.table <- mutate(output.table, Fold_Change=2^(logFC), neglogofP=(-log10(P.Value)))
+    output.table <- mutate(output.table, Fold_Change=2^(logFC), neglogofP=(-log10(adj.P.Val))) #note that this is taking -log10 of adjusted p-value
+    row.names(output.table) <- output.table$Unique_ID
     output.table <- output.table[order(output.table$Fold_Change),]})
   
   ########################################
@@ -97,10 +97,8 @@ shinyServer(function(input,output) {
   output.tableforplot2 <- reactive({output.tableforplot() %>% rename(' '=Fold_Change, ' '=neglogofP)})
   heatmapMAT <- reactive({output.tableforplot2()})
   
-  plot_data_FC <- reactive({t(heatmapMAT()[5])})
-  plot_data_pval <- reactive({test2 <- t(heatmapMAT()[6])})
-  outp_names <- reactive({heatmapMAT[1]})
-  
+  plot_data_FC <- reactive({as.matrix(t(heatmapMAT()[5]))})
+  plot_data_pval <- reactive({t(heatmapMAT()[6])})
   
   #set up min & max boundaries for levelplots
   minFC <- reactive({if(max(plot_data_FC())<=1.5 & min(plot_data_FC())>=-1.5){
@@ -130,7 +128,7 @@ shinyServer(function(input,output) {
                                           col.regions=cols,
                                           xlab =NULL,
                                           ylab="GEO ID",
-                                          main = "-log(p-value)",
+                                          main = "-log10(adjusted p-value)",
                                           aspect=2,
                                           scales=list(x=list(cex=1,rot=35,tck = c(0,0,0,0)), 
                                                       y=list(tck = c(1,0,0,0))),
@@ -150,10 +148,7 @@ shinyServer(function(input,output) {
       png(file)
       print(imageNLOP())
       dev.off()})
-  
-  output$geo_download <- downloadHandler(filename = function() {paste0('GEO_summary_table_ ',graphgene(), Sys.Date(), '.csv')},
-                                         content = function(file) {write.csv(data(), file)})
-  
+
   output$table_download <- downloadHandler(filename = function() {paste0('Heatmap_summary_table_',graphgene(), Sys.Date(), '.csv')},
                                          content = function(file) {write.csv(data(), file)})
 })

@@ -1,21 +1,17 @@
 library(shinythemes)
 
-###abc 
-
-
 # Define UI for application that displays GEO results based on user choices
 shinyUI(fluidPage(theme = shinytheme("cosmo"),
                   h1(strong("Asthma Gene Explorer"), align="center", style = "color: #000080;"), hr(),
                   sidebarLayout(
-                    sidebarPanel(width = 3, h4("Options:",align = "center"), hr(),
-                                 checkboxGroupInput(inputId="Tissue", label="Tissue", choices=c("Bronchial Epithelium"="BE",
-                                                                                                "Nasal Epithelium"="NE","CD4"="CD4","CD8"="CD8","PBMC"="PBMC","White Blood Cell"="WBC", "Airway Smooth Muscle"="ASM",
-                                                                                                "BAL"="BAL", "Lung"="Lung"),selected="BE" ),
-                                 checkboxGroupInput(inputId="Asthma", label="Condition", choices=c("Allergic Asthma"="allergic_asthma",
-                                                                                                                                "Severe Asthma"="severe_asthma","Asthma"="asthma","Mild Asthma"="mild_asthma","Non Allergic Asthma"=
-                                                                                                                                  "non_allergic_asthma", "Asthma and Rhinitis"="asthma_and_rhinitis", "Other"="NA"), selected="asthma"),
-                                 textInput(inputId="curr_gene",label="Type the Official Gene Symbol", value= "GAPDH"),
-                                 actionButton(inputId="updategraph",label="Update"),
+                    sidebarPanel(width = 3, h4("Select options:",align = "center"), hr(),
+                                 checkboxGroupInput(inputId="Tissue", label="Tissue", choices=c("Bronchial epithelium"="BE",
+                                                                                                "Nasal epithelium"="NE","CD4"="CD4","CD8"="CD8","PBMC"="PBMC","White blood cell"="WBC", "Airway smooth muscle"="ASM",
+                                                                                                "BAL"="BAL", "Whole lung"="Lung"),selected="BE" ),
+                                 checkboxGroupInput(inputId="Asthma", label="Condition", choices=c("Allergic asthma"="allergic_asthma",
+                                                                                                                                "Severe asthma"="severe_asthma","Asthma"="asthma","Mild asthma"="mild_asthma","Non-allergic asthma"=
+                                                                                                                                  "non_allergic_asthma", "Asthma and rhinitis"="asthma_and_rhinitis", "Other"="NA"), selected="asthma"),
+                                 textInput(inputId="curr_gene",label="Type the official gene symbol", value= "GAPDH"),
                                  hr(),
                                  fixedRow(img(src="http://shiny.rstudio.com/tutorial/lesson2/www/bigorb.png", height=42, width=48),
                                           "Created with ",
@@ -38,7 +34,6 @@ shinyUI(fluidPage(theme = shinytheme("cosmo"),
                                column(6,plotOutput(outputId="pval_plot",width="95%", height="650px"))),
                       fluidRow(align="center", br(), column(12,tableOutput(outputId="tableforgraph"))),
                       fixedRow(align="center",br(),
-                               downloadButton(outputId="geo_download",label="Download List of GEO Datasets"),
                                downloadButton(outputId="fc_download",label="Download Fold Change Plot"),
                                downloadButton(outputId="pval_download", label="Download P-Value Plot"),
                                downloadButton(outputId="table_download", label="Download heatmap data")),br()))))
