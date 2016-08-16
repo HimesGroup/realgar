@@ -14,7 +14,7 @@ output.table <- data.frame()
 Dataset_Info[is.na(Dataset_Info$PMID),"PMID"] <- ""
 
 # heatmap colors
-cols <-colorRampPalette(c("firebrick4","white","navyblue"))
+cols <-colorRampPalette(c("firebrick4","darkgoldenrod1","navyblue"))
 
 # Server
 shinyServer(function(input,output) {
@@ -75,7 +75,7 @@ shinyServer(function(input,output) {
     #preparing the data for levelplots
     #calculate the Fold Change, order by Fold Change for levelplots
     output.table <- mutate(output.table, Fold_Change=2^(logFC), neglogofP=(-log10(adj.P.Val))) #note that this is taking -log10 of adjusted p-value
-    row.names(output.table) <- output.table$Unique_ID
+    row.names(output.table) <- output.table$Unique_ID #crucial for plot labels on levelplot
     output.table <- output.table[order(output.table$Fold_Change),]})
   
   ########################################
@@ -107,9 +107,9 @@ shinyServer(function(input,output) {
   maxFC <- reactive({if(max(plot_data_FC())<=1.5 & min(plot_data_FC())>=-1.5){
     maxFC=1.5} else {maxFC=max(plot_data_FC())}})
   
-  minNLOP <- reactive({0})
-  maxNLOP <- reactive({if(max(plot_data_pval())<=1.5 & min(plot_data_pval())>=-1.5){
-    maxNLOP=1.5} else {maxNLOP=max(plot_data_pval())}})
+  # minNLOP <- reactive({0})
+  # maxNLOP <- reactive({if(max(plot_data_pval())<=1.5 & min(plot_data_pval())>=-1.5){
+  #   maxNLOP=1.5} else {maxNLOP=max(plot_data_pval())}})
   
   # levelplots output for fold change & log p-value
   graphgene=reactive({curr_gene()})
@@ -132,7 +132,7 @@ shinyServer(function(input,output) {
                                           aspect=2,
                                           scales=list(x=list(cex=1,rot=35,tck = c(0,0,0,0)), 
                                                       y=list(tck = c(1,0,0,0))),
-                                          at=seq(minNLOP(), maxNLOP(),length.out=100))})
+                                          at=seq(0, 5,length.out=100))})
   
   ### download buttons for GEO data and levelplots
   output$fc_download <- downloadHandler(
