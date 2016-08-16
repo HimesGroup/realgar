@@ -99,7 +99,7 @@ shinyServer(function(input,output) {
   
   plot_data_FC <- reactive({as.matrix(t(heatmapMAT()[5]))})
   plot_data_pval <- reactive({t(heatmapMAT()[6])})
-  
+ 
   #set up min & max boundaries for levelplots
   minFC <- reactive({if(max(plot_data_FC())<=1.5 & min(plot_data_FC())>=-1.5){
     minFC=-1.5} else {minFC=min(plot_data_FC())}})
@@ -113,16 +113,20 @@ shinyServer(function(input,output) {
   
   # levelplots output for fold change & log p-value
   graphgene=reactive({curr_gene()})
-  
+
   output$fc_plot <- renderPlot({levelplot(plot_data_FC(),
                                        col.regions=cols,
                                        xlab =NULL,
                                        ylab="GEO ID",
                                        main = "Fold Change",
                                        aspect=2,
-                                       scales=list(x=list(cex=1,rot=35,tck = c(0,0,0,0)),
-                                                   y=list(tck = c(1,0,0,0))),
+                                       par.settings=list(
+                                           layout.widths=list(left.padding=-4)),
+                                       scales=list(x=list(cex=1, tck = c(0,0,0,0)),
+                                                   y=list(cex=1, tck = c(1,0,0,0))),
                                        at=seq(minFC(), maxFC(), length.out=100))})
+  
+
   
   output$pval_plot <- renderPlot({levelplot(plot_data_pval(),
                                           col.regions=cols,
@@ -130,10 +134,10 @@ shinyServer(function(input,output) {
                                           ylab="GEO ID",
                                           main = "-log10(adjusted p-value)",
                                           aspect=2,
-                                          scales=list(x=list(cex=1,rot=35,tck = c(0,0,0,0)), 
-                                                      y=list(tck = c(1,0,0,0))),
+                                          scales=list(x=list(cex=1, tck = c(0,0,0,0)), 
+                                                      y=list(cex=1, tck = c(1,0,0,0))),
                                           at=seq(0, 5,length.out=100))})
-  
+
   ### download buttons for GEO data and levelplots
   output$fc_download <- downloadHandler(
     filename= function(){paste0("Fold_change_heatmap_", graphgene(), "_", Sys.Date(), ".png")},
