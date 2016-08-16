@@ -5,6 +5,8 @@ library(lattice)
 library(stringr)
 library(RColorBrewer)
 
+###test
+
 # Load data
 Dataset_Info <- read.csv("databases/microarray_data_infosheet.csv")
 Dataset_Info$Unique_ID <- apply(Dataset_Info[, c("GEO_ID", "Tissue", "Asthma")], 1, paste, collapse="_")
