@@ -4,6 +4,7 @@ library(dplyr)
 library(lattice)
 library(stringr)
 library(RColorBrewer)
+library(DT)
 
 #testing again. test test testing
 
@@ -35,17 +36,24 @@ shinyServer(function(input,output) {
   
   #add links for GEO_ID and PMID
   GEO_data <- reactive({UserDataset_Info() %>%
-      mutate(GEO_ID_link = paste0("http://www.ncbi.nlm.nih.gov/gquery/?term=", GEO_ID), 
+      mutate(GEO_ID_link = paste0("http://www.ncbi.nlm.nih.gov/gquery/?term=", GEO_ID),
              PMID_link = paste0("http://www.ncbi.nlm.nih.gov/pubmed/?term=", PMID))})
+    
+  Dataset <- reactive({paste0("<a href='",  GEO_data()$GEO_ID_link, "' target='_blank'>",GEO_data()$GEO_ID,"</a>")})
+  PMID <- reactive({paste0("<a href='",  GEO_data()$PMID_link, "' target='_blank'>",GEO_data()$PMID,"</a>")})
+  Description <- reactive({GEO_data()$Description})
   
-  output$GEO_table <- renderTable({
-    Dataset <- paste0("<a href='",  GEO_data()$GEO_ID_link, "' target='_blank'>",GEO_data()$GEO_ID,"</a>")
-    PMID <- paste0("<a href='",  GEO_data()$PMID_link, "' target='_blank'>",GEO_data()$PMID,"</a>")
-    Description <- GEO_data()$Description
-    
-    data.frame(Dataset, PMID, Description)
-    
-  }, sanitize.text.function = function(x) x, include.rownames=FALSE)
+  GEO_links <- reactive({
+      df <- data.frame(Dataset(), PMID(), Description())
+      colnames(df) <- c("Dataset", "PMID", "Description")
+      df})
+  
+  output$GEO_table <- renderDataTable({DT::datatable(GEO_links(), 
+                                                     class = 'cell-border stripe', 
+                                                     rownames = FALSE, 
+                                                     options = list(paging = FALSE, searching = FALSE),
+                                                     escape=FALSE)})
+  
 
   #select and modify data used for levelplots and accompanying table
   output.tableforplot <- reactive({
@@ -91,7 +99,10 @@ shinyServer(function(input,output) {
       mutate(Fold_Change=round(Fold_Change,digits=2),adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), P.Value =format(P.Value, scientific=TRUE, digits=3))%>%
       rename(`Study ID`=Unique_ID, `P Value`=P.Value, `Q Value`=adj.P.Val, `Log 2 Fold Change`=Fold_Change)})
   
-  output$tableforgraph <- renderTable(data2())
+  output$tableforgraph <- renderDataTable({DT::datatable(data2(), 
+                                                         class = 'cell-border stripe', 
+                                                         rownames = FALSE, 
+                                                         options = list(paging = FALSE, searching = FALSE))})
   
   ################
   ## Levelplots ##
