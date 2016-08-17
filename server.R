@@ -1,12 +1,10 @@
-library(shiny)
 library(data.table)
 library(dplyr)
 library(lattice)
 library(stringr)
 library(RColorBrewer)
 library(DT)
-
-#testing again. test test testing
+library(shiny)
 
 # Load data
 Dataset_Info <- read.csv("databases/microarray_data_infosheet.csv")
@@ -48,11 +46,11 @@ shinyServer(function(input,output) {
       colnames(df) <- c("Dataset", "PMID", "Description")
       df})
   
-  output$GEO_table <- renderDataTable({DT::datatable(GEO_links(), 
+  output$GEO_table <- DT::renderDataTable(GEO_links(), 
                                                      class = 'cell-border stripe', 
                                                      rownames = FALSE, 
                                                      options = list(paging = FALSE, searching = FALSE),
-                                                     escape=FALSE)})
+                                                     escape=FALSE)
   
 
   #select and modify data used for levelplots and accompanying table
@@ -99,10 +97,10 @@ shinyServer(function(input,output) {
       mutate(Fold_Change=round(Fold_Change,digits=2),adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), P.Value =format(P.Value, scientific=TRUE, digits=3))%>%
       rename(`Study ID`=Unique_ID, `P Value`=P.Value, `Q Value`=adj.P.Val, `Log 2 Fold Change`=Fold_Change)})
   
-  output$tableforgraph <- renderDataTable({DT::datatable(data2(), 
+  output$tableforgraph <- DT::renderDataTable(data2(), 
                                                          class = 'cell-border stripe', 
                                                          rownames = FALSE, 
-                                                         options = list(paging = FALSE, searching = FALSE))})
+                                                         options = list(paging = FALSE, searching = FALSE))
   
   ################
   ## Levelplots ##
