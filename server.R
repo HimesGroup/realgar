@@ -1,10 +1,14 @@
-library(data.table)
+library(shiny)
 library(dplyr)
+library(data.table)
 library(lattice)
 library(stringr)
 library(RColorBrewer)
 library(DT)
-library(shiny)
+library(GenomicRanges)
+library(Gviz) # Gviz causes an odd problem... if run app second time within same session, get an "object of type 'closure' is not subsettable" error
+              # this comes from loading Gviz, not from any code associated with it - and running first time is fine
+              # hopefully will not affect the app when it is online
 
 # Load data
 Dataset_Info <- read.csv("databases/microarray_data_infosheet.csv")
@@ -13,15 +17,16 @@ for (i in Dataset_Info$Unique_ID){
     assign(i, fread(paste0("databases/microarray_results/", i,".csv"), sep=" "))}
 output.table <- data.frame()
 Dataset_Info[is.na(Dataset_Info$PMID),"PMID"] <- ""
+tfbs <- read.table("databases/tfbs_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #TFBS data from ENCODE - matched to gene ids using bedtools
+snp <- read.table("C:/Users/mayashum/Documents/realgar/databases/grasp_output_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #SNP data from GRASP - matched to gene ids using bedtools
 
 # heatmap colors
-cols <-colorRampPalette(c("firebrick4","darkgoldenrod1","navyblue"))
+heatmap_colors <- colorRampPalette(c("navyblue","darkgoldenrod1","firebrick4"))
 
 # Server
 shinyServer(function(input,output) {
   
-  #reactive values
-  curr_gene=reactive({toupper(input$curr_gene)})
+  curr_gene <- reactive({toupper(input$curr_gene)}) #can recognize gene names even if typed lowercase
   
   #######################
   ## GEO studies table ##
@@ -34,7 +39,7 @@ shinyServer(function(input,output) {
   
   #add links for GEO_ID and PMID
   GEO_data <- reactive({UserDataset_Info() %>%
-      mutate(GEO_ID_link = paste0("http://www.ncbi.nlm.nih.gov/gquery/?term=", GEO_ID),
+      dplyr::mutate(GEO_ID_link = paste0("http://www.ncbi.nlm.nih.gov/gquery/?term=", GEO_ID),
              PMID_link = paste0("http://www.ncbi.nlm.nih.gov/pubmed/?term=", PMID))})
     
   Dataset <- reactive({paste0("<a href='",  GEO_data()$GEO_ID_link, "' target='_blank'>",GEO_data()$GEO_ID,"</a>")})
@@ -46,7 +51,7 @@ shinyServer(function(input,output) {
       colnames(df) <- c("Dataset", "PMID", "Description")
       df})
   
-  output$GEO_table <- DT::renderDataTable(GEO_links(), 
+  output$GEO_table <- DT::renderDataTable(GEO_links(),  
                                                      class = 'cell-border stripe', 
                                                      rownames = FALSE, 
                                                      options = list(paging = FALSE, searching = FALSE),
@@ -59,9 +64,9 @@ shinyServer(function(input,output) {
     #select data for the gene currently selected
     data_filter <- function(x){
       x %>%
-        filter(SYMBOL==curr_gene()) %>%
-        select(logFC, P.Value, adj.P.Val) %>%
-        filter(P.Value==min(P.Value))}
+        dplyr::filter(SYMBOL==curr_gene()) %>%
+        dplyr::select(logFC, P.Value, adj.P.Val) %>%
+        dplyr::filter(P.Value==min(P.Value))}
     
     #get data for given gene for each study selected
     for (i in UserDataset_Info()$Unique_ID){
@@ -69,9 +74,9 @@ shinyServer(function(input,output) {
       
       if(any(tbl_vars(curr.gene.data)=="qValuesBatch")) {
         curr.gene.data <- (curr.gene.data %>%
-                             select(-P.Value,-adj.P.Val) %>%
-                             rename(P.Value=pValuesBatch) %>%
-                             rename(adj.P.Val=qValuesBatch))}
+                             dplyr::select(-P.Value,-adj.P.Val) %>%
+                             dplyr::rename(P.Value=pValuesBatch) %>%
+                             dplyr::rename(adj.P.Val=qValuesBatch))}
       
       #use data_filter function from above to filter curr.gene.data 
       curr.gene.data <- data_filter(curr.gene.data)
@@ -82,86 +87,121 @@ shinyServer(function(input,output) {
     
     #preparing the data for levelplots
     #calculate the Fold Change, order by Fold Change for levelplots
-    output.table <- mutate(output.table, Fold_Change=2^(logFC), neglogofP=(-log10(adj.P.Val))) #note that this is taking -log10 of adjusted p-value
+    output.table <- dplyr::mutate(output.table, Fold_Change=2^(logFC), neglogofP=(-log10(adj.P.Val))) #note that this is taking -log10 of adjusted p-value
     row.names(output.table) <- output.table$Unique_ID #crucial for plot labels on levelplot
     output.table <- output.table[order(output.table$Fold_Change),]})
   
   ########################################
   ## Data table accompanying levelplots ##
   ########################################
-  data <- reactive({select(output.tableforplot(), Unique_ID, P.Value,Fold_Change,neglogofP)
+  levelplot_data <- reactive({dplyr::select(output.tableforplot(), Unique_ID, P.Value,Fold_Change,neglogofP)
     output.tableforplot()[rev(rownames(output.tableforplot())),]})
   
-  data2 <- reactive({data()%>%
-      select(Unique_ID,Fold_Change,adj.P.Val,P.Value)%>%
-      mutate(Fold_Change=round(Fold_Change,digits=2),adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), P.Value =format(P.Value, scientific=TRUE, digits=3))%>%
-      rename(`Study ID`=Unique_ID, `P Value`=P.Value, `Q Value`=adj.P.Val, `Log 2 Fold Change`=Fold_Change)})
+  levelplot_data_outp <- reactive({levelplot_data()%>%
+      dplyr::select(Unique_ID,Fold_Change,adj.P.Val,P.Value)%>%
+      dplyr::mutate(Fold_Change=round(Fold_Change,digits=2),adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), P.Value =format(P.Value, scientific=TRUE, digits=3))%>%
+      dplyr::rename(`Study ID`=Unique_ID, `P Value`=P.Value, `Q Value`=adj.P.Val, `Log 2 Fold Change`=Fold_Change)})
   
-  output$tableforgraph <- DT::renderDataTable(data2(), 
-                                                         class = 'cell-border stripe', 
-                                                         rownames = FALSE, 
-                                                         options = list(paging = FALSE, searching = FALSE))
+  output$tableforgraph <- DT::renderDataTable(levelplot_data_outp(), class = 'cell-border stripe', rownames = FALSE, options = list(paging = FALSE, searching = FALSE))
   
   ################
   ## Levelplots ##
   ################
-  output.tableforplot2 <- reactive({output.tableforplot() %>% rename(' '=Fold_Change, ' '=neglogofP)})
+  output.tableforplot2 <- reactive({output.tableforplot() %>% dplyr::rename(' '=Fold_Change, ' '=neglogofP)})
   heatmapMAT <- reactive({output.tableforplot2()})
   
-  plot_data_FC <- reactive({as.matrix(t(heatmapMAT()[5]))})
-  plot_data_pval <- reactive({t(heatmapMAT()[6])})
+  fc_data <- reactive({as.matrix(t(heatmapMAT()[5]))})
+  pval_data <- reactive({t(heatmapMAT()[6])})
  
   #set up min & max boundaries for levelplots
-  minFC <- reactive({if(max(plot_data_FC())<=1.5 & min(plot_data_FC())>=-1.5){
-    minFC=-1.5} else {minFC=min(plot_data_FC())}})
+  minFC <- reactive({if(max(fc_data())<=1.5 & min(fc_data())>=-1.5){
+    minFC=-1.5} else {minFC=min(fc_data())}})
   
-  maxFC <- reactive({if(max(plot_data_FC())<=1.5 & min(plot_data_FC())>=-1.5){
-    maxFC=1.5} else {maxFC=max(plot_data_FC())}})
+  maxFC <- reactive({if(max(fc_data())<=1.5 & min(fc_data())>=-1.5){
+    maxFC=1.5} else {maxFC=max(fc_data())}})
   
   # minNLOP <- reactive({0})
   # maxNLOP <- reactive({if(max(plot_data_pval())<=1.5 & min(plot_data_pval())>=-1.5){
   #   maxNLOP=1.5} else {maxNLOP=max(plot_data_pval())}})
   
   # levelplots output for fold change & log p-value
+  fc_plot <- reactive({
+      levelplot(fc_data(),
+                col.regions=heatmap_colors,
+                xlab =NULL,
+                ylab="GEO ID",
+                main = "Fold Change",
+                aspect=2,
+                par.settings=list(
+                    layout.widths=list(left.padding=-4)),
+                scales=list(x=list(cex=1, tck = c(0,0,0,0)),
+                            y=list(cex=1, tck = c(1,0,0,0))),
+                at=seq(minFC(), maxFC(), length.out=100))})
+  
+  output$fc_plot_outp <- renderPlot({fc_plot()})
+
+  pval_plot <- reactive({
+      levelplot(pval_data(),
+                col.regions=heatmap_colors,
+                xlab =NULL,
+                ylab="GEO ID",
+                main = "-log10(adjusted p-value)",
+                aspect=2,
+                scales=list(x=list(cex=1, tck = c(0,0,0,0)), 
+                            y=list(cex=1, tck = c(1,0,0,0))),
+                at=seq(0, 8,length.out=100))})
+  
+  output$pval_plot_outp <- renderPlot({pval_plot()})
+  
+  ###################
+  ## SNPs and TFBS ##
+  ###################
+
+  # mart <- useMart("ensembl", dataset="hsapiens_gene_ensembl")
+  # gene <- makeGene(id = "ENSG00000095203", type="ensembl_gene_id", biomart = mart)
+  # 
+  # plusStrand <- makeGeneRegion(chromosome = 19, start = 12050000, end = 12230000, strand = "+", biomart = mart)
+  # genomeAxis <- makeGenomeAxis(add53 = TRUE)
+  # output$GRASP <- renderPlot({gdPlot(list(plusStrand, genomeAxis))})
+  # 
+
+  ##########
+  ## TFBS ##
+  ##########
+  
+  tfbs_tracks <- reactive({
+      tfbs_subs <- filter(tfbs, GENE3==curr_gene())
+
+      if (nrow(tfbs_subs) > 0) {
+          gr <- GRanges(seqnames = tfbs_subs$CHR, ranges = IRanges(start = tfbs_subs$START, end = tfbs_subs$STOP))
+          chr <- as.character(unique(seqnames(gr)))
+          gen <- "hg19"
+          atrack <- Gviz::AnnotationTrack(gr, name="NR3C1 binding sites", stacking="dense")
+          itrack <- IdeogramTrack(genome = gen, chromosome = chr) # this step really slows the app down...
+          gtrack <- GenomeAxisTrack()
+          plotTracks(list(gtrack, itrack, atrack), sizes=c(1,0.5,1.25))
+      }
+  })
+
+    output$tfbs_plot <- renderPlot({tfbs_tracks()})
+
+  ######################
+  ## Download buttons ##
+  ######################
   graphgene=reactive({curr_gene()})
-
-  output$fc_plot <- renderPlot({levelplot(plot_data_FC(),
-                                       col.regions=cols,
-                                       xlab =NULL,
-                                       ylab="GEO ID",
-                                       main = "Fold Change",
-                                       aspect=2,
-                                       par.settings=list(
-                                           layout.widths=list(left.padding=-4)),
-                                       scales=list(x=list(cex=1, tck = c(0,0,0,0)),
-                                                   y=list(cex=1, tck = c(1,0,0,0))),
-                                       at=seq(minFC(), maxFC(), length.out=100))})
-  
-
-  
-  output$pval_plot <- renderPlot({levelplot(plot_data_pval(),
-                                          col.regions=cols,
-                                          xlab =NULL,
-                                          ylab="GEO ID",
-                                          main = "-log10(adjusted p-value)",
-                                          aspect=2,
-                                          scales=list(x=list(cex=1, tck = c(0,0,0,0)), 
-                                                      y=list(cex=1, tck = c(1,0,0,0))),
-                                          at=seq(0, 5,length.out=100))})
-
-  ### download buttons for GEO data and levelplots
+    
   output$fc_download <- downloadHandler(
     filename= function(){paste0("Fold_change_heatmap_", graphgene(), "_", Sys.Date(), ".png")},
     content=function(file){
       png(file)
-      print(imageFC())
+      print(fc_plot())
       dev.off()})
   
   output$pval_download <- downloadHandler(
     filename= function(){paste0("-log(pval)_heatmap_", graphgene(), "_", Sys.Date(), ".png")},
     content=function(file){
       png(file)
-      print(imageNLOP())
+      print(pval_plot())
       dev.off()})
 
   output$table_download <- downloadHandler(filename = function() {paste0('Heatmap_summary_table_',graphgene(), Sys.Date(), '.csv')},
