@@ -98,13 +98,10 @@ ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"),
                                            column(4, downloadButton(outputId="pval_download", label="Download p-value plot"), align="center")),
                                   
                                   fluidRow(br(),
-                                      column(6, h5(strong("Asthma datasets loaded")), align = "left"),
-                                      column(5, offset = 1, h5(strong("GC datasets loaded")), align = "left")),
+                                      column(12, h5(strong("Data shown in plots above")), align = "center")),
                                   
                                   fluidRow(
-                                           column(6, DT::dataTableOutput(outputId="tableforgraph_Asthma")),
-                                           column(5, offset = 1, DT::dataTableOutput(outputId="tableforgraph_GC")),
-                                           column(7, downloadButton(outputId="table_download_asthma", label="Download asthma data"), align="center"),
-                                           column(5, downloadButton(outputId="table_download_GC", label="Download GC Data"), align="center")),br(), hr(), width = 12,
+                                           column(10, offset= 1, DT::dataTableOutput(outputId="tableforgraph"), align="center"),
+                                           column(12, downloadButton(outputId="table_download", label="Download data"), align="center")),br(), hr(), width = 12,
                                   
                                   fluidRow(column(10, align="center", plotOutput(outputId="tfbs_plot")), br()))))

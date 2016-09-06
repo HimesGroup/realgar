@@ -133,16 +133,12 @@ shinyServer(function(input,output) {
       data_Asthma()%>%
           dplyr::select(Unique_ID, adj.P.Val, P.Value,Fold_Change, neglogofP, Lower_bound_CI, Upper_bound_CI) %>%
           dplyr::mutate(Fold_Change=round(Fold_Change,digits=2),adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), P.Value =format(P.Value, scientific=TRUE, digits=3), 
-                        Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2))%>%
+                        Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2), Comparison = "Asthma vs. non-asthma")%>%
           dplyr::rename(`Study ID`=Unique_ID, `P Value`=P.Value, `Q Value`=adj.P.Val, `Fold Change`=Fold_Change)})
   
-  output$tableforgraph_Asthma <- DT::renderDataTable(data2_Asthma()%>% 
-                                                         dplyr::mutate(`Fold Change(95% CI)` = paste(`Fold Change`, " ","(", Lower_bound_CI, ",", Upper_bound_CI, ")", sep = "")) %>%
-                                                         dplyr::select(`Study ID`, `P Value`, `Q Value`, `Fold Change(95% CI)`),
-                                                     class = 'cell-border stripe', 
-                                                     rownames = FALSE, 
-                                                     options = list(paging = FALSE, searching = FALSE, autoWidth = T,
-                                                                    aoColumnDefs = list(list(width = '100px', targets = "_all"))))
+  tableforgraph_Asthma <- reactive(data2_Asthma()%>% 
+                                       dplyr::mutate(`Fold Change(95% CI)` = paste(`Fold Change`, " ","(", Lower_bound_CI, ",", Upper_bound_CI, ")", sep = "")) %>%
+                                       dplyr::select(`Study ID`, `Comparison`, `P Value`, `Q Value`, `Fold Change(95% CI)`))
   # GC
   data_GC <- reactive({ output.tableforplot_GC = output.tableforplot()
   output.tableforplot_GC = output.tableforplot_GC[output.tableforplot_GC$App == "GC",]
@@ -152,16 +148,19 @@ shinyServer(function(input,output) {
       data_GC()%>%
           dplyr::select(Unique_ID, adj.P.Val, P.Value, Fold_Change, neglogofP, Lower_bound_CI, Upper_bound_CI) %>%
           dplyr::mutate(Fold_Change=round(Fold_Change,digits=2),adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), P.Value =format(P.Value, scientific=TRUE, digits=3), 
-                 Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2))%>%
+                 Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2), Comparison = "Glucocorticoid treatment vs. placebo")%>%
           dplyr::rename(`Study ID`=Unique_ID, `P Value`=P.Value, `Q Value`=adj.P.Val, `Fold Change`=Fold_Change)})
   
-  output$tableforgraph_GC <- DT::renderDataTable(data2_GC()%>% 
-                                                     dplyr::mutate(`Fold Change(95% CI)` = paste(`Fold Change`, " ","(", Lower_bound_CI, ",", Upper_bound_CI, ")", sep = "")) %>%
-                                                     dplyr::select(`Study ID`, `P Value`, `Q Value`, `Fold Change(95% CI)`),
+  tableforgraph_GC <- reactive(data2_GC()%>% 
+                                   dplyr::mutate(`Fold Change(95% CI)` = paste(`Fold Change`, " ","(", Lower_bound_CI, ",", Upper_bound_CI, ")", sep = "")) %>%
+                                   dplyr::select(`Study ID`, `Comparison`, `P Value`, `Q Value`, `Fold Change(95% CI)`))
+  #combine asthma & GC into one
+  output$tableforgraph <- DT::renderDataTable(rbind(tableforgraph_Asthma(), tableforgraph_GC()),
                                                  class = 'cell-border stripe', 
                                                  rownames = FALSE, 
                                                  options = list(paging = FALSE, searching = FALSE),
                                                  width = "100%")
+  
   
   #################
   ## Forestplots ##
@@ -172,15 +171,16 @@ shinyServer(function(input,output) {
       validate(need(nrow(data2_Asthma) != 0, "Please choose a dataset.")) #Generate the user-friendly error message)
       
       text_asthma = data2_Asthma$`Study ID`
-      if (nrow(data2_Asthma) < 3){boxsize = 0.08
-      lineheight = unit(5, "cm")}
-      else {boxsize = 0.2
-      lineheight = unit(2, "cm")}
+      # if (nrow(data2_Asthma) < 3){
+      boxsize = 0.08
+      lineheight = unit(1.5, "cm")#}
+     # else {boxsize = 0.2
+     # lineheight = unit(2, "cm")}
       
       xticks = seq(from = min(0.9, min(data2_Asthma$Lower_bound_CI)), to = max(max(data2_Asthma$Upper_bound_CI),1.2), length.out = 5)
       forestplot(as.vector(text_asthma), title = "Asthma vs. non-asthma", data2_Asthma$`Fold Change`, data2_Asthma$Lower_bound_CI, data2_Asthma$Upper_bound_CI, zero = 1, 
                        xlab = "Fold Change", ylab = "Studies", boxsize = boxsize,
-                       col = fpColors(lines = "darkblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 0.4,
+                       col = fpColors(lines = "darkred", box = "royalblue", zero = "lightgrey"), lwd.ci = 0.4,
                        xticks = xticks, lineheight = lineheight, line.margin = 0.10,graphwidth = unit(4.5, "cm"),mar = unit(c(0,-1,0,-1),"mm"),
                        txt_gp = fpTxtGp(xlab = gpar(cex = 1.5), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
   
@@ -189,10 +189,11 @@ shinyServer(function(input,output) {
       validate(need(nrow(data2_GC) != 0, "Please choose a dataset."))
           
       text_GC = data2_GC$`Study ID`
-      if (nrow(data2_GC) < 3){boxsize = 0.08
-      lineheight = unit(5, "cm")}
-      else {boxsize = 0.2
-      lineheight = unit(2, "cm")}
+      #if (nrow(data2_GC) < 3){
+      boxsize = 0.08
+      lineheight = unit(1.5, "cm")#}
+     # else {boxsize = 0.2
+      #lineheight = unit(2, "cm")}
         
       xticks = seq(from = min(min(0.9, data2_GC$Lower_bound_CI)), to = max(max(data2_GC$Upper_bound_CI),1.2), length.out = 5)
       forestplot(as.vector(text_GC), title = "Glucocorticoid treatment vs. placebo", data2_GC$`Fold Change`, data2_GC$Lower_bound_CI, data2_GC$Upper_bound_CI,zero = 1, 
@@ -295,12 +296,6 @@ shinyServer(function(input,output) {
           pval_plot()
           dev.off()})
 
-  output$table_download_asthma <- downloadHandler(filename = function() {paste0('Asthma_data_summary_table_',graphgene(), Sys.Date(), '.csv')},
-                                                  content = function(file) {write.csv(data2_Asthma()%>% 
-                                                                                          mutate(`Fold Change(95% Confidence Interval)` = paste(`Fold Change`, " ","(", Lower_bound_CI, ",", Upper_bound_CI, ")", sep = "")) %>%
-                                                                                          select(`Study ID`, `P Value`, `Q Value`, `Fold Change(95% Confidence Interval)`), file, row.names=FALSE)})
-  output$table_download_GC <- downloadHandler(filename = function() {paste0('GC_data_summary_table_',graphgene(), Sys.Date(), '.csv')},
-                                              content = function(file) {write.csv(data2_GC()%>% 
-                                                                                      mutate(`Fold Change(95% Confidence Interval)` = paste(`Fold Change`, " ","(", Lower_bound_CI, ",", Upper_bound_CI, ")", sep = "")) %>%
-                                                                                      select(`Study ID`, `P Value`, `Q Value`, `Fold Change(95% Confidence Interval)`), file, row.names=FALSE)})
+  output$table_download <- downloadHandler(filename = function() {paste0('Asthma&GC_data_summary_table_',graphgene(), Sys.Date(), '.csv')},
+                                                  content = function(file) {write.csv(rbind(tableforgraph_Asthma(), tableforgraph_GC()), file, row.names=FALSE)})
 })
