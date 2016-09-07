@@ -1,6 +1,6 @@
-# detach("package:Gviz", unload=TRUE) # this is to keep RStudio happy - keep commented out otherwise
+# detach("package:Gviz", unload=TRUE) # this is to keep RStudio happy - run if loading app more than once in same session - keep commented out otherwise
                                     # if load Gviz 2x in same session (i.e. close & re-run app), get "object of type 'closure' is not subsettable" error
-                                    # probably will not be an issue when running app from the website
+                                    # should not be an issue when running app from the website
                                              
 library(shiny)
 library(dplyr)
@@ -23,7 +23,9 @@ for (i in Dataset_Info$Unique_ID) {
 Dataset_Info[is.na(Dataset_Info$PMID),"PMID"] <- ""
 
 tfbs <- read.table("databases/tfbs_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #TFBS data from ENCODE - matched to gene ids using bedtools
-snp <- read.table("C:/Users/mayashum/Documents/realgar/databases/grasp_output_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #SNP data from GRASP - matched to gene ids using bedtools
+snp <- read.table("databases/grasp_output_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #SNP data from GRASP - matched to gene ids using bedtools
+gene_locations <- read.table("databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location data from our hg19 gtf annotation file
+data(geneModels)
 
 # make a list of gene symbols in all datasets for checking whether gene symbol entered is valid - used for GeneSymbol later on
 genes_avail <- vector()
@@ -161,44 +163,52 @@ shinyServer(function(input,output) {
                                                  options = list(paging = FALSE, searching = FALSE),
                                                  width = "100%")
   
-  
   #################
   ## Forestplots ##
   #################
-  
   forestplot_asthma <- function(){
       data2_Asthma = data2_Asthma()
       validate(need(nrow(data2_Asthma) != 0, "Please choose a dataset.")) #Generate the user-friendly error message)
       
       text_asthma = data2_Asthma$`Study ID`
-      # if (nrow(data2_Asthma) < 3){
-      boxsize = 0.08
-      lineheight = unit(1.5, "cm")#}
-     # else {boxsize = 0.2
-     # lineheight = unit(2, "cm")}
       
+      pval_lines_asthma <- vector("list", nrow(data2_Asthma))
+      # getPalette <- colorRampPalette(brewer.pal(9, "Blues"))
+      # pval_palette <- getPalette(nrow(data2_Asthma)+1)
+      # pval_colors <- cbind(data2_Asthma$`Q Value`, pval_palette) #make sure this is sorted in order of pval when assigning #need to fix
+      # 
+      ######################working on this
+      getPalette <- colorRampPalette(c("navyblue","darkgoldenrod1","firebrick4"))
+      pval_palette <- getPalette(nrow(data2_Asthma))
+      pval_color_data <- cbind(data2_Asthma$`Fold Change`, data2_Asthma$`Q Value`) # fold change is column 1; qval is column 2
+      pval_color_data <- pval_color_data[order(pval_color_data[,2], decreasing=TRUE),] #sort by qval for attaching to colors vector
+      pval_colors <- cbind(pval_color_data, pval_palette) #attach
+      pval_colors <- pval_color_data[order(pval_color_data[,1], decreasing=TRUE),] #sort back into desired order - this is by fold change
+       
+      i <- 1
+      while(i < (nrow(data2_Asthma) + 2)) {
+          pval_lines_asthma[[i+1]] <- gpar(lwd=300/nrow(data2_Asthma), lineend="butt", col=pval_colors[i,3])
+          i <- i + 1
+      }
+
       xticks = seq(from = min(0.9, min(data2_Asthma$Lower_bound_CI)), to = max(max(data2_Asthma$Upper_bound_CI),1.2), length.out = 5)
-      forestplot(as.vector(text_asthma), title = "Asthma vs. non-asthma", data2_Asthma$`Fold Change`, data2_Asthma$Lower_bound_CI, data2_Asthma$Upper_bound_CI, zero = 1, 
-                       xlab = "Fold Change", ylab = "Studies", boxsize = boxsize,
-                       col = fpColors(lines = "darkred", box = "royalblue", zero = "lightgrey"), lwd.ci = 0.4,
-                       xticks = xticks, lineheight = lineheight, line.margin = 0.10,graphwidth = unit(4.5, "cm"),mar = unit(c(0,-1,0,-1),"mm"),
-                       txt_gp = fpTxtGp(xlab = gpar(cex = 1.5), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
-  
+      # fp_cols_asthma <- brewer.pal(data2_Asthma$`Q Value`, "GnBu")
+      forestplot(as.vector(text_asthma), title = "Asthma vs. non-asthma", data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")], zero = 1, 
+                 xlab = "Fold Change",ylab = "Studies", boxsize = 0.2, hrzl_lines=pval_lines_asthma, col = fpColors(lines = "darkblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2, 
+                 xticks = xticks, lineheight = unit((22.5/nrow(data2_Asthma)), "cm"), graphwidth = unit(4.5, "cm"),mar = unit(c(0,0,0,0),"mm"),
+                 txt_gp = fpTxtGp(xlab = gpar(cex = 1.5), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))
+  }
+
   forestplot_GC <- function(){
       data2_GC = data2_GC()
       validate(need(nrow(data2_GC) != 0, "Please choose a dataset."))
           
       text_GC = data2_GC$`Study ID`
-      #if (nrow(data2_GC) < 3){
-      boxsize = 0.08
-      lineheight = unit(1.5, "cm")#}
-     # else {boxsize = 0.2
-      #lineheight = unit(2, "cm")}
-        
+
       xticks = seq(from = min(min(0.9, data2_GC$Lower_bound_CI)), to = max(max(data2_GC$Upper_bound_CI),1.2), length.out = 5)
-      forestplot(as.vector(text_GC), title = "Glucocorticoid treatment vs. placebo", data2_GC$`Fold Change`, data2_GC$Lower_bound_CI, data2_GC$Upper_bound_CI,zero = 1, 
-                       xlab = "Fold Change",ylab = "Studies", boxsize = boxsize, col = fpColors(lines = "darkblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 0.4,
-                       xticks = xticks, lineheight = lineheight, line.margin = 0.15,graphwidth = unit(4.5, "cm"),mar = unit(c(0,0,0,0),"mm"),
+      forestplot(as.vector(text_GC), title = "Glucocorticoid treatment vs. placebo", data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")] ,zero = 1, 
+                       xlab = "Fold Change",ylab = "Studies", boxsize = 0.2, col = fpColors(lines = "darkblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2,
+                       xticks = xticks, lineheight = unit((22.5/nrow(data2_GC)), "cm"), graphwidth = unit(4.5, "cm"),mar = unit(c(5,0,5,0),"mm"),
                        txt_gp = fpTxtGp(xlab = gpar(cex = 1.5), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))
     }
   
@@ -206,69 +216,79 @@ shinyServer(function(input,output) {
   output$forestplot_GC = renderPlot(forestplot_GC())
   
   
-  ###############
-  ## Levelplot ##
-  ###############
+  #######################
+  ## p-value levelplot ##
+  #######################
   output.tableforplot2 <- reactive({output.tableforplot() %>% dplyr::rename(' '=Fold_Change, ' '=neglogofP)})
   heatmapMAT <- reactive({output.tableforplot2()})
   pval_data <- reactive({t(heatmapMAT()[10])}) #It's 5 in Maya's script. I have add some columns in the table so this number is changed.
   
-  #set up min & max boundaries for levelplots
-  minNLOP <- reactive({0})
-  maxNLOP <- reactive({if(max(pval_data())<=1.5 & min(pval_data())>=-1.5){
-      maxNLOP=1.5} else {maxNLOP=max(pval_data())}})
+  #set up max boundary for levelplot (min is fixed at 0)
+  maxNLOP <- reactive({if(max(pval_data())<=1.5 & min(pval_data())>=-1.5){maxNLOP=1.5} else {maxNLOP=max(pval_data())}})
   
   # levelplot for log p-value
-  pval_plot <- reactive({
+  pval_plot <- function() {
       levelplot(pval_data(),
                 col.regions=heatmap_colors,
-                xlab =NULL,
-                # ylab="GEO ID",
+                xlab = NULL,
+                ylab = NULL,
                 main = "-log10(adjusted p-value)",
                 pretty = FALSE,
-                aspect=2,
+                aspect = 2,
                 width = 3,
                 scales=list(x=list(cex=1, tck = c(0,0,0,0)),
                             y=list(cex=1, tck = c(1,0,0,0))),
-                at=seq(0,maxNLOP(),length.out=100))})
+                at=seq(0,maxNLOP(),length.out=100))}
   
   output$pval_plot_outp <- renderPlot({pval_plot()})
   
-  ###################
-  ## SNPs and TFBS ##
-  ###################
-#this is using genome graphs... uses biomaRt which is slow
-  # mart <- useMart("ensembl", dataset="hsapiens_gene_ensembl")
-  # gene <- makeGene(id = "ENSG00000095203", type="ensembl_gene_id", biomart = mart)
-  # 
-  # plusStrand <- makeGeneRegion(chromosome = 19, start = 12050000, end = 12230000, strand = "+", biomart = mart)
-  # genomeAxis <- makeGenomeAxis(add53 = TRUE)
-  # output$GRASP <- renderPlot({gdPlot(list(plusStrand, genomeAxis))})
-  # 
-
-  ###################
-  ## SNPs and TFBS ##
-  ###################
-  
-  tfbs_tracks <- reactive({
+  ###############################
+  ## Gene, SNP and TFBS tracks ##
+  ###############################
+    gene_tracks <- function() {
       tfbs_subs <- filter(tfbs, GENE3==curr_gene())
-
+      gene_subs <- filter(gene_locations, GENE3==curr_gene())
+      snp_subs <- filter(snp, GENE3==curr_gene())
+      
+      gen <- "hg19"
+      
+      getPalette = colorRampPalette(brewer.pal(9, "Blues"))
+      
+      tfbs_cols <- brewer.pal(tfbs$SCORE, "GnBu") # make sure this is based on the absolute 0 - 1000 scale => comparable across genes
+                                                  # not on the scores for the current gene
+      #gene - this track shows up for all genes
+      gr_gene <- GRanges(seqnames = gene_subs$CHR, ranges = IRanges(start = gene_subs$START, end = gene_subs$STOP))
+      chr <- as.character(unique(seqnames(gr_gene)))
+      atrack_gene <- Gviz::GeneRegionTrack(gr_gene, name="Exons", stacking="dense", fill = "darkgoldenrod1")
+      # atrack_gene <- Gviz::GeneRegionTrack(geneModels, genome = gen, chromosome = chr, name = "Gene Model")
+      itrack <- IdeogramTrack(genome = gen, chromosome = chr) # this step really slows the app down...but only the first time?
+      gtrack <- GenomeAxisTrack()
+      
+      #tfbs - if statement b/c many genes don't have one
       if (nrow(tfbs_subs) > 0) {
-          gr <- GRanges(seqnames = tfbs_subs$CHR, ranges = IRanges(start = tfbs_subs$START, end = tfbs_subs$STOP))
-          chr <- as.character(unique(seqnames(gr)))
-          gen <- "hg19"
-          atrack <- Gviz::AnnotationTrack(gr, name="NR3C1 binding sites", stacking="dense")
-          itrack <- IdeogramTrack(genome = gen, chromosome = chr) # this step really slows the app down...but only the first time?
-          gtrack <- GenomeAxisTrack()
-          
-          data(geneModels)
-          grtrack <- GeneRegionTrack(geneModels, genome = gen, chromosome = chr, name = "Gene Model")
-          
-          plotTracks(list(gtrack, itrack, atrack), sizes=c(1,0.5,1.25))
+          gr_tfbs <- GRanges(seqnames = tfbs_subs$CHR, ranges = IRanges(start = tfbs_subs$START, end = tfbs_subs$STOP))
+          atrack_tfbs <- Gviz::AnnotationTrack(gr_tfbs, name="NR3C1 binding sites", stacking="dense", fill = tfbs_cols)
       }
-  })
+      
+      #snp - if statement b/c many genes don't have one
+      if (nrow(snp_subs) > 0) {
+          gr_snp <- GRanges(seqnames = snp_subs$CHR, ranges = IRanges(start = snp_subs$START, end = snp_subs$STOP))
+          atrack_snp <- Gviz::AnnotationTrack(gr_snp, name="SNPs", stacking="dense")
+      }
 
-    output$tfbs_plot <- renderPlot({tfbs_tracks()})
+      #output depends on whether there is are TFBS & SNPs for a given gene    
+      if ((nrow(tfbs_subs) > 0) & (nrow(snp_subs) > 0)) {
+          plotTracks(list(gtrack, itrack, atrack_gene, atrack_tfbs, atrack_snp), sizes=c(1,0.5,0.5,0.5,0.5))
+      } else if (nrow(tfbs_subs) > 0) {
+          plotTracks(list(gtrack, itrack, atrack_gene, atrack_tfbs), sizes=c(1,0.5,1.25,1.25))
+      } else if (nrow(snp_subs) > 0) {
+          plotTracks(list(gtrack, itrack, atrack_gene, atrack_snp), sizes=c(1,0.5,1.25,1.25))
+      } else {
+          plotTracks(list(gtrack, itrack, atrack_gene), sizes=c(1,0.5,1.25))
+      }
+  }
+
+    output$gene_tracks_outp <- renderPlot({gene_tracks()})
 
   ######################
   ## Download buttons ##
@@ -276,14 +296,14 @@ shinyServer(function(input,output) {
   graphgene=reactive({curr_gene()})
     
   output$asthma_fc_download <- downloadHandler(
-    filename= function(){paste0("Fold_change_asthma_", graphgene(), "_", Sys.Date(), ".png")},
+    filename= function(){paste0("fold_change_asthma_", graphgene(), "_", Sys.Date(), ".png")},
     content=function(file){
       png(file)
       forestplot_asthma()
       dev.off()})
   
-  output$asthma_fc_download <- downloadHandler(
-      filename= function(){paste0("Fold_change_GC_", graphgene(), "_", Sys.Date(), ".png")},
+  output$GC_fc_download <- downloadHandler(
+      filename= function(){paste0("fold_change_GC_", graphgene(), "_", Sys.Date(), ".png")},
       content=function(file){
           png(file)
           forestplot_GC()
@@ -295,7 +315,14 @@ shinyServer(function(input,output) {
           png(file)
           pval_plot()
           dev.off()})
-
+  
+  output$gene_tracks_download <- downloadHandler(
+      filename= function(){paste0("gene_tracks_", graphgene(), "_", Sys.Date(), ".png")},
+      content=function(file){
+          png(file)
+          gene_tracks()
+          dev.off()})
+  
   output$table_download <- downloadHandler(filename = function() {paste0('Asthma&GC_data_summary_table_',graphgene(), Sys.Date(), '.csv')},
                                                   content = function(file) {write.csv(rbind(tableforgraph_Asthma(), tableforgraph_GC()), file, row.names=FALSE)})
 })
