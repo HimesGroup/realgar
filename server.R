@@ -25,7 +25,18 @@ Dataset_Info[is.na(Dataset_Info$PMID),"PMID"] <- ""
 tfbs <- read.table("databases/tfbs_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #TFBS data from ENCODE - matched to gene ids using bedtools
 snp <- read.table("databases/grasp_output_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #SNP data from GRASP - matched to gene ids using bedtools
 gene_locations <- read.table("databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location data from our hg19 gtf annotation file
-data(geneModels)
+
+#color tfbs based on binding score - used in tracks
+#create color scheme based on values
+getPalette = colorRampPalette(brewer.pal(9, "Blues"))
+tfbs$color <- getPalette(50)[as.numeric(cut(tfbs$SCORE,breaks = 50))]
+
+#for SNP annotations
+# snp$PMID_link <- paste0("http://www.ncbi.nlm.nih.gov/pubmed/?term=", snp$PMID)
+# snp$pval_annot <- paste0(snp$SNP, "\nPMID: \n", "<a href='",  snp$PMID_link, "' target='_blank'>",snp$PMID,"</a>", "\npval=\n",format(snp$P, scientific = TRUE, digits=2))
+# snp$pval_annot <- paste0(snp$SNP, "\nPMID: \n", snp$PMID, "\npval=\n",format(snp$P, scientific = TRUE, digits=2))
+# paste0("<a href='",  snp$PMID_link, "' target='_blank'>",snp$PMID,"</a>")
+snp$pval_annot <- format(snp$P, scientific = TRUE, digits=2)
 
 # make a list of gene symbols in all datasets for checking whether gene symbol entered is valid - used for GeneSymbol later on
 genes_avail <- vector()
@@ -223,14 +234,11 @@ shinyServer(function(input,output) {
   ## Gene, SNP and TFBS tracks ##
   ###############################
     gene_tracks <- function() {
-      tfbs_subs <- filter(tfbs, GENE3==curr_gene())
-      gene_subs <- filter(gene_locations, GENE3==curr_gene())
-      snp_subs <- filter(snp, GENE3==curr_gene())
+      tfbs_subs <- unique(filter(tfbs, GENE3==curr_gene()))
+      gene_subs <- unique(filter(gene_locations, GENE3==curr_gene()))
+      snp_subs <- unique(filter(snp, GENE3==curr_gene()))
       
       gen <- "hg19"
-      
-      getPalette = colorRampPalette(brewer.pal(9, "Blues"))
-      palette(getPalette(max(2,nrow(tfbs_subs))))
       
       #gene - this track shows up for all genes
       gr_gene <- GRanges(seqnames = gene_subs$CHR, ranges = IRanges(start = gene_subs$START, end = gene_subs$STOP))
@@ -243,24 +251,26 @@ shinyServer(function(input,output) {
       #tfbs - if statement b/c many genes don't have one
       if (nrow(tfbs_subs) > 0) {
           gr_tfbs <- GRanges(seqnames = tfbs_subs$CHR, ranges = IRanges(start = tfbs_subs$START, end = tfbs_subs$STOP))
-          atrack_tfbs <- Gviz::AnnotationTrack(gr_tfbs, name="NR3C1 binding sites", stacking="dense", fill = tfbs$SCORE)
-      }
+          atrack_tfbs <- Gviz::AnnotationTrack(gr_tfbs, name="NR3C1 binding sites", stacking="dense", fill = tfbs_subs$color)
+          feature(atrack_tfbs) <- ""
+          }
       
       #snp - if statement b/c many genes don't have one
       if (nrow(snp_subs) > 0) {
           gr_snp <- GRanges(seqnames = snp_subs$CHR, ranges = IRanges(start = snp_subs$START, end = snp_subs$STOP))
           atrack_snp <- Gviz::AnnotationTrack(gr_snp, name="SNPs", stacking="dense")
+          feature(atrack_snp) <- snp_subs$pval_annot
       }
 
       #output depends on whether there is are TFBS & SNPs for a given gene    
       if ((nrow(tfbs_subs) > 0) & (nrow(snp_subs) > 0)) {
-          plotTracks(list(gtrack, atrack_gene, atrack_tfbs, atrack_snp, itrack), sizes=c(1,1.25,1.25,1.25,0.5))
+          plotTracks(list(gtrack, atrack_gene, atrack_tfbs, atrack_snp, itrack), featureAnnotation = "feature", fontcolor.feature = "darkblue", cex.feature=0.85, sizes=c(1,1.25,1.25,1.25,0.5), col=NULL,  background.panel = "#FFFEDB", background.title = "darkblue")
       } else if (nrow(tfbs_subs) > 0) {
-          plotTracks(list(gtrack, atrack_gene, atrack_tfbs, itrack), sizes=c(1,1.25,1.25,0.5))
+          plotTracks(list(gtrack, atrack_gene, atrack_tfbs, itrack), sizes=c(1,1.25,1.25,0.5), col=NULL,  background.panel = "#FFFEDB", background.title = "darkblue")
       } else if (nrow(snp_subs) > 0) {
-          plotTracks(list(gtrack, atrack_gene, atrack_snp, itrack), sizes=c(1,1.25,1.25,0.5))
+          plotTracks(list(gtrack, atrack_gene, atrack_snp, itrack), featureAnnotation = "feature", fontcolor.feature = "darkblue", cex.feature=0.85, sizes=c(1,1.25,1.25,0.5), col=NULL, background.panel = "#FFFEDB", background.title = "darkblue")
       } else {
-          plotTracks(list(gtrack, atrack_gene, itrack), sizes=c(1,1.25,0.5))
+          plotTracks(list(gtrack, atrack_gene, itrack), sizes=c(1,1.25,0.5), col=NULL)
       }
   }
 
