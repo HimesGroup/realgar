@@ -168,36 +168,15 @@ shinyServer(function(input,output) {
   #################
   forestplot_asthma <- function(){
       data2_Asthma = data2_Asthma()
-      validate(need(nrow(data2_Asthma) != 0, "Please choose a dataset.")) #Generate the user-friendly error message)
+      validate(need(nrow(data2_Asthma) != 0, "Please choose a dataset.")) #Generate the user-friendly error message
       
       text_asthma = data2_Asthma$`Study ID`
-      
-      pval_lines_asthma <- vector("list", nrow(data2_Asthma))
-      # getPalette <- colorRampPalette(brewer.pal(9, "Blues"))
-      # pval_palette <- getPalette(nrow(data2_Asthma)+1)
-      # pval_colors <- cbind(data2_Asthma$`Q Value`, pval_palette) #make sure this is sorted in order of pval when assigning #need to fix
-      # 
-      ######################working on this
-      getPalette <- colorRampPalette(c("navyblue","darkgoldenrod1","firebrick4"))
-      pval_palette <- getPalette(nrow(data2_Asthma))
-      pval_color_data <- cbind(data2_Asthma$`Fold Change`, data2_Asthma$`Q Value`) # fold change is column 1; qval is column 2
-      pval_color_data <- pval_color_data[order(pval_color_data[,2], decreasing=TRUE),] #sort by qval for attaching to colors vector
-      pval_colors <- cbind(pval_color_data, pval_palette) #attach
-      pval_colors <- pval_color_data[order(pval_color_data[,1], decreasing=TRUE),] #sort back into desired order - this is by fold change
-       
-      i <- 1
-      while(i < (nrow(data2_Asthma) + 2)) {
-          pval_lines_asthma[[i+1]] <- gpar(lwd=300/nrow(data2_Asthma), lineend="butt", col=pval_colors[i,3])
-          i <- i + 1
-      }
 
       xticks = seq(from = min(0.9, min(data2_Asthma$Lower_bound_CI)), to = max(max(data2_Asthma$Upper_bound_CI),1.2), length.out = 5)
-      # fp_cols_asthma <- brewer.pal(data2_Asthma$`Q Value`, "GnBu")
       forestplot(as.vector(text_asthma), title = "Asthma vs. non-asthma", data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")], zero = 1, 
-                 xlab = "Fold Change",ylab = "Studies", boxsize = 0.2, hrzl_lines=pval_lines_asthma, col = fpColors(lines = "darkblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2, 
+                 xlab = "Fold Change",ylab = "Studies", boxsize = 0.2, col = fpColors(lines = "darkblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2, 
                  xticks = xticks, lineheight = unit((22.5/nrow(data2_Asthma)), "cm"), graphwidth = unit(4.5, "cm"),mar = unit(c(0,0,0,0),"mm"),
-                 txt_gp = fpTxtGp(xlab = gpar(cex = 1.5), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))
-  }
+                 txt_gp = fpTxtGp(xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
 
   forestplot_GC <- function(){
       data2_GC = data2_GC()
@@ -207,14 +186,12 @@ shinyServer(function(input,output) {
 
       xticks = seq(from = min(min(0.9, data2_GC$Lower_bound_CI)), to = max(max(data2_GC$Upper_bound_CI),1.2), length.out = 5)
       forestplot(as.vector(text_GC), title = "Glucocorticoid treatment vs. placebo", data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")] ,zero = 1, 
-                       xlab = "Fold Change",ylab = "Studies", boxsize = 0.2, col = fpColors(lines = "darkblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2,
-                       xticks = xticks, lineheight = unit((22.5/nrow(data2_GC)), "cm"), graphwidth = unit(4.5, "cm"),mar = unit(c(5,0,5,0),"mm"),
-                       txt_gp = fpTxtGp(xlab = gpar(cex = 1.5), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))
-    }
+                       xlab = "Fold Change",ylab = "Studies", boxsize = 0.15, col = fpColors(lines = "darkblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2,
+                       xticks = xticks, lineheight = unit((22.5/nrow(data2_GC)), "cm"), graphwidth = unit(4.5, "cm"),mar = unit(c(0,0,0,0),"mm"),
+                       txt_gp = fpTxtGp(xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
   
   output$forestplot_asthma = renderPlot(forestplot_asthma())
   output$forestplot_GC = renderPlot(forestplot_GC())
-  
   
   #######################
   ## p-value levelplot ##
@@ -253,13 +230,12 @@ shinyServer(function(input,output) {
       gen <- "hg19"
       
       getPalette = colorRampPalette(brewer.pal(9, "Blues"))
+      palette(getPalette(max(2,nrow(tfbs_subs))))
       
-      tfbs_cols <- brewer.pal(tfbs$SCORE, "GnBu") # make sure this is based on the absolute 0 - 1000 scale => comparable across genes
-                                                  # not on the scores for the current gene
       #gene - this track shows up for all genes
       gr_gene <- GRanges(seqnames = gene_subs$CHR, ranges = IRanges(start = gene_subs$START, end = gene_subs$STOP))
       chr <- as.character(unique(seqnames(gr_gene)))
-      atrack_gene <- Gviz::GeneRegionTrack(gr_gene, name="Exons", stacking="dense", fill = "darkgoldenrod1")
+      atrack_gene <- Gviz::GeneRegionTrack(gr_gene, name="Exons", stacking="dense", fill = "dodgerblue3")
       # atrack_gene <- Gviz::GeneRegionTrack(geneModels, genome = gen, chromosome = chr, name = "Gene Model")
       itrack <- IdeogramTrack(genome = gen, chromosome = chr) # this step really slows the app down...but only the first time?
       gtrack <- GenomeAxisTrack()
@@ -267,7 +243,7 @@ shinyServer(function(input,output) {
       #tfbs - if statement b/c many genes don't have one
       if (nrow(tfbs_subs) > 0) {
           gr_tfbs <- GRanges(seqnames = tfbs_subs$CHR, ranges = IRanges(start = tfbs_subs$START, end = tfbs_subs$STOP))
-          atrack_tfbs <- Gviz::AnnotationTrack(gr_tfbs, name="NR3C1 binding sites", stacking="dense", fill = tfbs_cols)
+          atrack_tfbs <- Gviz::AnnotationTrack(gr_tfbs, name="NR3C1 binding sites", stacking="dense", fill = tfbs$SCORE)
       }
       
       #snp - if statement b/c many genes don't have one
@@ -278,13 +254,13 @@ shinyServer(function(input,output) {
 
       #output depends on whether there is are TFBS & SNPs for a given gene    
       if ((nrow(tfbs_subs) > 0) & (nrow(snp_subs) > 0)) {
-          plotTracks(list(gtrack, itrack, atrack_gene, atrack_tfbs, atrack_snp), sizes=c(1,0.5,0.5,0.5,0.5))
+          plotTracks(list(gtrack, atrack_gene, atrack_tfbs, atrack_snp, itrack), sizes=c(1,1.25,1.25,1.25,0.5))
       } else if (nrow(tfbs_subs) > 0) {
-          plotTracks(list(gtrack, itrack, atrack_gene, atrack_tfbs), sizes=c(1,0.5,1.25,1.25))
+          plotTracks(list(gtrack, atrack_gene, atrack_tfbs, itrack), sizes=c(1,1.25,1.25,0.5))
       } else if (nrow(snp_subs) > 0) {
-          plotTracks(list(gtrack, itrack, atrack_gene, atrack_snp), sizes=c(1,0.5,1.25,1.25))
+          plotTracks(list(gtrack, atrack_gene, atrack_snp, itrack), sizes=c(1,1.25,1.25,0.5))
       } else {
-          plotTracks(list(gtrack, itrack, atrack_gene), sizes=c(1,0.5,1.25))
+          plotTracks(list(gtrack, atrack_gene, itrack), sizes=c(1,1.25,0.5))
       }
   }
 

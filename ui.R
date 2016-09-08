@@ -61,5 +61,5 @@ ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"),
                                            column(10, offset= 1, DT::dataTableOutput(outputId="tableforgraph"), align="center"),
                                            column(12, downloadButton(outputId="table_download", label="Download data"), align="center")),br(), hr(), width = 12,
                                   
-                                  fluidRow(column(10, align="center", plotOutput(outputId="gene_tracks_outp")),
+                                  fluidRow(column(10, align="center", plotOutput(outputId="gene_tracks_outp"), br()),
                                            column(12, downloadButton(outputId="gene_tracks_download", label="Download gene tracks"), align="center"),br()))))
