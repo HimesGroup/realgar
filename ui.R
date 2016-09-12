@@ -1,7 +1,7 @@
 library(shinythemes)
 
 # Define UI for application that displays GEO results based on user choices
-ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"),
+ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"), 
                         h1(strong("REALGAR"), align="center", style = "color: #9E443A;"),
                         h3(strong("Reducing Associations by Linking Genes And transcriptomic Results"), align="center", style = "color: #9E443A;"), hr(),
                         p("REALGAR integrates publically available microarray gene expression data from the", 
@@ -23,11 +23,11 @@ ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"),
                                            column(5,  
                                                   
                                                   fluidRow(column(5, h4("Select options:"),align = "left")), 
-                                                  fluidRow(
-                                                      column(5,checkboxGroupInput(inputId="Tissue", label="Tissue", choices=c("Bronchial epithelium"="BE","Lens epithelial cell" = "LEC",
+                                                  fluidRow(column(5,checkboxGroupInput(inputId="Tissue", label="Tissue", choices=c("Bronchial epithelium"="BE","Lens epithelial cell" = "LEC",
                                                                                                                               "Nasal epithelium"="NE","CD4"="CD4","CD8"="CD8","PBMC"="PBMC","White blood cell"="WBC", "Airway smooth muscle"="ASM",
                                                                                                                               "BAL"="BAL", "Whole lung"="Lung","Lymphoblastic leukemia cell" = "chALL","MCF10A-Myc" = "MCF10A-Myc",
-                                                                                                                              "Macrophage" = "MDM","Osteosarcoma U2OS cell" = "U2O", "Lymphoblastoid cell" = "LCL"),selected="BE")), 
+                                                                                                                              "Macrophage" = "MDM","Osteosarcoma U2OS cell" = "U2O", "Lymphoblastoid cell" = "LCL"),selected="BE"),
+                                                                  actionButton("selectall","Select/unselect all tissues", style="color: #fff; background-color: #337ab7; border-color: #2e6da4")), 
                                                       
                                                       column(5,
                                                              fluidRow(checkboxGroupInput(inputId="Asthma", label="Asthma Type", choices=c("Allergic asthma"="allergic_asthma",
@@ -61,5 +61,5 @@ ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"),
                                            column(10, offset= 1, DT::dataTableOutput(outputId="tableforgraph"), align="center"),
                                            column(12, downloadButton(outputId="table_download", label="Download data"), align="center")),br(), hr(), width = 12,
                                   
-                                  fluidRow(column(10, align="center", plotOutput(outputId="gene_tracks_outp"), br()),
+                                  fluidRow(column(10, align="center", plotOutput(outputId="gene_tracks_outp"), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br(), br()),
                                            column(12, downloadButton(outputId="gene_tracks_download", label="Download gene tracks"), align="center"),br()))))

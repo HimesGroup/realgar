@@ -22,21 +22,18 @@ for (i in Dataset_Info$Unique_ID) {
     assign(i, fread(paste0("databases/microarray_results/", i,".csv"), sep=","))}
 Dataset_Info[is.na(Dataset_Info$PMID),"PMID"] <- ""
 
-tfbs <- read.table("databases/tfbs_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #TFBS data from ENCODE - matched to gene ids using bedtools
-snp <- read.table("databases/grasp_output_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #SNP data from GRASP - matched to gene ids using bedtools
-gene_locations <- read.table("databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location data from our hg19 gtf annotation file
+tfbs <- fread("databases/tfbs_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #TFBS data from ENCODE - matched to gene ids using bedtools
+snp <- fread("databases/grasp_output_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #SNP data from GRASP - matched to gene ids using bedtools
+gene_locations <- fread("databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location & transcript data from GENCODE
 
 #color tfbs based on binding score - used in tracks
 #create color scheme based on values
 getPalette = colorRampPalette(brewer.pal(9, "Blues"))
-tfbs$color <- getPalette(50)[as.numeric(cut(tfbs$SCORE,breaks = 50))]
+tfbs$color <- getPalette(50)[as.numeric(cut(tfbs$score,breaks = 50))]
+snp$color <- getPalette(1024)[as.numeric(cut(-snp$p,breaks = 1024))]
 
 #for SNP annotations
-# snp$PMID_link <- paste0("http://www.ncbi.nlm.nih.gov/pubmed/?term=", snp$PMID)
-# snp$pval_annot <- paste0(snp$SNP, "\nPMID: \n", "<a href='",  snp$PMID_link, "' target='_blank'>",snp$PMID,"</a>", "\npval=\n",format(snp$P, scientific = TRUE, digits=2))
-# snp$pval_annot <- paste0(snp$SNP, "\nPMID: \n", snp$PMID, "\npval=\n",format(snp$P, scientific = TRUE, digits=2))
-# paste0("<a href='",  snp$PMID_link, "' target='_blank'>",snp$PMID,"</a>")
-snp$pval_annot <- format(snp$P, scientific = TRUE, digits=2)
+snp$pval_annot <- snp$snp
 
 # make a list of gene symbols in all datasets for checking whether gene symbol entered is valid - used for GeneSymbol later on
 genes_avail <- vector()
@@ -46,14 +43,29 @@ output.table <- data.frame() # initiate output table - used later in output.tabl
 heatmap_colors <- colorRampPalette(c("navyblue","darkgoldenrod1","firebrick4")) # heatmap colors - used in p-value plot
 
 # server
-shinyServer(function(input,output) {
+shinyServer(function(input, output, session) {
   
   curr_gene <- reactive({toupper(input$curr_gene)}) #can recognize gene names even if typed lowercase
   
   GeneSymbol <- reactive({
       if (curr_gene() %in% genes_avail) {TRUE} else {FALSE}  #For generating error message when a wrong gene symbol is input.
   })
-      
+  
+  
+  ##############################################
+  ## "Select all" button for tissue selection ##
+  ##############################################
+  checkbox_choices <- c("Bronchial epithelium"="BE","Lens epithelial cell" = "LEC",
+                        "Nasal epithelium"="NE","CD4"="CD4","CD8"="CD8","PBMC"="PBMC","White blood cell"="WBC", "Airway smooth muscle"="ASM",
+                        "BAL"="BAL", "Whole lung"="Lung","Lymphoblastic leukemia cell" = "chALL","MCF10A-Myc" = "MCF10A-Myc",
+                        "Macrophage" = "MDM","Osteosarcoma U2OS cell" = "U2O", "Lymphoblastoid cell" = "LCL")
+  observe({
+      if(input$selectall == 0) return(NULL) 
+      else if (input$selectall%%2 == 0)
+      {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=checkbox_choices)}
+      else
+      {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=checkbox_choices,selected=c("BE", "LEC", "NE", "CD4", "CD8", "PBMC", "WBC", "ASM", "BAL", "Lung",
+                                                                                                 "chALL", "MCF10A-Myc", "MDM", "U2O", "LCL"))}})
   #######################
   ## GEO studies table ##
   #######################
@@ -207,16 +219,33 @@ shinyServer(function(input,output) {
   #######################
   ## p-value levelplot ##
   #######################
-  output.tableforplot2 <- reactive({output.tableforplot() %>% dplyr::rename(' '=Fold_Change, ' '=neglogofP)})
-  heatmapMAT <- reactive({output.tableforplot2()})
-  pval_data <- reactive({t(heatmapMAT()[10])}) #It's 5 in Maya's script. I have add some columns in the table so this number is changed.
+
+  #to separate asthma & GC in p-value plot, initially have each set of data separately, then combine to plot
   
-  #set up max boundary for levelplot (min is fixed at 0)
-  maxNLOP <- reactive({if(max(pval_data())<=1.5 & min(pval_data())>=-1.5){maxNLOP=1.5} else {maxNLOP=max(pval_data())}})
+  #asthma data
+  data3_Asthma <- reactive({
+      temp_asthma <- data_Asthma()
+      temp_asthma[rev(rownames(temp_asthma)),]}) #inefficient - opposite of making data_Asthma() - needed so forestplot & levelplot have the same order
+  
+  output.tableforplot2_asthma <- reactive({data3_Asthma() %>% dplyr::rename(' '=Fold_Change, ' '=neglogofP)})
+  heatmapMAT_asthma <- reactive({output.tableforplot2_asthma()})
+  pval_data_asthma <- reactive({t(heatmapMAT_asthma()[10])}) #It's 5 in Maya's script. I have add some columns in the table so this number is changed.
+  
+  #GC data
+  data3_GC <- reactive({
+      temp_GC <- data_GC()
+      temp_GC[rev(rownames(temp_GC)),]}) #inefficient - opposite of making data_GC() - needed so forestplot & levelplot have the same order
+  
+  output.tableforplot2_GC <- reactive({data3_GC() %>% dplyr::rename(' '=Fold_Change, ' '=neglogofP)})
+  heatmapMAT_GC <- reactive({output.tableforplot2_GC()})
+  pval_data_GC <- reactive({t(heatmapMAT_GC()[10])}) #It's 5 in Maya's script. I have add some columns in the table so this number is changed.
+  
+  #set up max boundary for levelplot (min is fixed at 0) - now fixed
+  # maxNLOP <- reactive({if(max(pval_data())<=1.5 & min(pval_data())>=-1.5){maxNLOP=1.5} else {maxNLOP=max(pval_data())}})
   
   # levelplot for log p-value
   pval_plot <- function() {
-      levelplot(pval_data(),
+      levelplot(cbind(pval_data_GC(), pval_data_asthma()),
                 col.regions=heatmap_colors,
                 xlab = NULL,
                 ylab = NULL,
@@ -226,55 +255,57 @@ shinyServer(function(input,output) {
                 width = 3,
                 scales=list(x=list(cex=1, tck = c(0,0,0,0)),
                             y=list(cex=1, tck = c(1,0,0,0))),
-                at=seq(0,maxNLOP(),length.out=100))}
+                at=seq(0,8,length.out=100))}
   
   output$pval_plot_outp <- renderPlot({pval_plot()})
   
   ###############################
   ## Gene, SNP and TFBS tracks ##
   ###############################
+ 
     gene_tracks <- function() {
-      tfbs_subs <- unique(filter(tfbs, GENE3==curr_gene()))
-      gene_subs <- unique(filter(gene_locations, GENE3==curr_gene()))
-      snp_subs <- unique(filter(snp, GENE3==curr_gene()))
+      validate(need(curr_gene() != "", "Please enter a gene id")) #Generate a error message when no gend id is input.
+      validate(need(GeneSymbol() != FALSE, "Please enter a valid gene id.")) # Generate error message if the gene symbol is not right.
+      validate(need(nrow(UserDataset_Info()) != 0, "Please choose at least one dataset.")) #Generate a error message when no data is loaded.
       
+      tfbs_subs <- unique(filter(tfbs, symbol==curr_gene()))
+      gene_subs <- unique(filter(gene_locations, symbol==curr_gene()))
+      gene_subs <- gene_subs[!(duplicated(gene_subs$exon)),] #else end up with the same exon many times
+      snp_subs <- unique(filter(snp, symbol==curr_gene()))
+      
+      #constant for all tracks
       gen <- "hg19"
+      chr <- unique(gene_subs$chromosome)
       
-      #gene - this track shows up for all genes
-      gr_gene <- GRanges(seqnames = gene_subs$CHR, ranges = IRanges(start = gene_subs$START, end = gene_subs$STOP))
-      chr <- as.character(unique(seqnames(gr_gene)))
-      atrack_gene <- Gviz::GeneRegionTrack(gr_gene, name="Exons", stacking="dense", fill = "dodgerblue3")
-      # atrack_gene <- Gviz::GeneRegionTrack(geneModels, genome = gen, chromosome = chr, name = "Gene Model")
-      itrack <- IdeogramTrack(genome = gen, chromosome = chr) # this step really slows the app down...but only the first time?
-      gtrack <- GenomeAxisTrack()
+      #chromosome, axis and gene - these tracks show up for all genes
+      chrom_track <- IdeogramTrack(genome = gen, chromosome = chr) # this step slows the app down...but only the first time?
+      axis_track <- GenomeAxisTrack()
+      gene_track <- Gviz::GeneRegionTrack(gene_subs, genome = gen, chromosome = chr, name = "Transcripts", transcriptAnnotation="transcript", fill = "royalblue")
       
-      #tfbs - if statement b/c many genes don't have one
-      if (nrow(tfbs_subs) > 0) {
-          gr_tfbs <- GRanges(seqnames = tfbs_subs$CHR, ranges = IRanges(start = tfbs_subs$START, end = tfbs_subs$STOP))
-          atrack_tfbs <- Gviz::AnnotationTrack(gr_tfbs, name="NR3C1 binding sites", stacking="dense", fill = tfbs_subs$color)
-          feature(atrack_tfbs) <- ""
-          }
-      
-      #snp - if statement b/c many genes don't have one
-      if (nrow(snp_subs) > 0) {
-          gr_snp <- GRanges(seqnames = snp_subs$CHR, ranges = IRanges(start = snp_subs$START, end = snp_subs$STOP))
-          atrack_snp <- Gviz::AnnotationTrack(gr_snp, name="SNPs", stacking="dense")
-          feature(atrack_snp) <- snp_subs$pval_annot
-      }
+      #tfbs and snp track - if statements b/c many genes don't have one
+      if (nrow(tfbs_subs) > 0) {tfbs_track <- Gviz::AnnotationTrack(tfbs_subs, name="NR3C1 binding sites", fill = tfbs_subs$color, group = " ")}
+      if (nrow(snp_subs) > 0) {snp_track <- Gviz::AnnotationTrack(snp_subs, name="SNPs", fill = snp_subs$color, group=snp_subs$pval_annot)}
 
+      #track sizes - defaults make scaling look weird
+       chrom_size <- 1
+       axis_size <- 1
+       gene_size <- 10
+       tfbs_size <- 2
+       snp_size <- 2 + nrow(snp_subs)/5 # snp track can get big if many SNPs associated with gene - expand to keep individual SNPs still visible
+      
       #output depends on whether there is are TFBS & SNPs for a given gene    
       if ((nrow(tfbs_subs) > 0) & (nrow(snp_subs) > 0)) {
-          plotTracks(list(gtrack, atrack_gene, atrack_tfbs, atrack_snp, itrack), featureAnnotation = "feature", fontcolor.feature = "darkblue", cex.feature=0.85, sizes=c(1,1.25,1.25,1.25,0.5), col=NULL,  background.panel = "#FFFEDB", background.title = "darkblue")
+          plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size,snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
       } else if (nrow(tfbs_subs) > 0) {
-          plotTracks(list(gtrack, atrack_gene, atrack_tfbs, itrack), sizes=c(1,1.25,1.25,0.5), col=NULL,  background.panel = "#FFFEDB", background.title = "darkblue")
+          plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size), col=NULL,  background.panel = "#d3cecc", background.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
       } else if (nrow(snp_subs) > 0) {
-          plotTracks(list(gtrack, atrack_gene, atrack_snp, itrack), featureAnnotation = "feature", fontcolor.feature = "darkblue", cex.feature=0.85, sizes=c(1,1.25,1.25,0.5), col=NULL, background.panel = "#FFFEDB", background.title = "darkblue")
+          plotTracks(list(chrom_track, axis_track, gene_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
       } else {
-          plotTracks(list(gtrack, atrack_gene, itrack), sizes=c(1,1.25,0.5), col=NULL)
-      }
+          plotTracks(list(chrom_track, axis_track, gene_track), sizes=c(chrom_size,axis_size,gene_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
+      } 
   }
-
-    output$gene_tracks_outp <- renderPlot({gene_tracks()})
+    
+    output$gene_tracks_outp <- renderPlot({gene_tracks()}, height=1200, width=1600)
 
   ######################
   ## Download buttons ##
