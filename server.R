@@ -10,7 +10,6 @@ library(lattice)
 library(stringr)
 library(RColorBrewer)
 library(DT)
-library(GenomicRanges)
 library(Gviz) 
 
 # load dataset descriptions
@@ -40,7 +39,7 @@ genes_avail <- vector()
 for (i in ls()[grep("GSE", ls())]) {genes_avail <- unique(rbind(genes_avail, get(i)$SYMBOL))}
 
 output.table <- data.frame() # initiate output table - used later in output.tableforplot()
-heatmap_colors <- colorRampPalette(c("navyblue","darkgoldenrod1","firebrick4")) # heatmap colors - used in p-value plot
+heatmap_colors <- colorRampPalette(c("navyblue","darkgoldenrod1","darkorange2","firebrick4")) # heatmap colors - used in p-value plot
 
 # server
 shinyServer(function(input, output, session) {
@@ -197,7 +196,7 @@ shinyServer(function(input, output, session) {
 
       xticks = seq(from = min(0.9, min(data2_Asthma$Lower_bound_CI)), to = max(max(data2_Asthma$Upper_bound_CI),1.2), length.out = 5)
       forestplot(as.vector(text_asthma), title = "Asthma vs. non-asthma", data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")], zero = 1, 
-                 xlab = "Fold Change",ylab = "Studies", boxsize = 0.2, col = fpColors(lines = "darkblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2, 
+                 xlab = "Fold Change",ylab = "Studies", boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2, 
                  xticks = xticks, lineheight = unit((22.5/nrow(data2_Asthma)), "cm"), graphwidth = unit(4.5, "cm"),mar = unit(c(0,0,0,0),"mm"),
                  txt_gp = fpTxtGp(xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
 
@@ -209,7 +208,7 @@ shinyServer(function(input, output, session) {
 
       xticks = seq(from = min(min(0.9, data2_GC$Lower_bound_CI)), to = max(max(data2_GC$Upper_bound_CI),1.2), length.out = 5)
       forestplot(as.vector(text_GC), title = "Glucocorticoid treatment vs. placebo", data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")] ,zero = 1, 
-                       xlab = "Fold Change",ylab = "Studies", boxsize = 0.15, col = fpColors(lines = "darkblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2,
+                       xlab = "Fold Change",ylab = "Studies", boxsize = 0.15, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2,
                        xticks = xticks, lineheight = unit((22.5/nrow(data2_GC)), "cm"), graphwidth = unit(4.5, "cm"),mar = unit(c(0,0,0,0),"mm"),
                        txt_gp = fpTxtGp(xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
   
@@ -255,23 +254,28 @@ shinyServer(function(input, output, session) {
                 width = 3,
                 scales=list(x=list(cex=1, tck = c(0,0,0,0)),
                             y=list(cex=1, tck = c(1,0,0,0))),
-                at=seq(0,8,length.out=100))}
+                at=seq(0,8.5,length.out=100))}
   
   output$pval_plot_outp <- renderPlot({pval_plot()})
   
   ###############################
   ## Gene, SNP and TFBS tracks ##
   ###############################
- 
+  
+  tfbs_subs <- reactive({unique(filter(tfbs, symbol==curr_gene()))})
+  gene_subs <- reactive({unique(filter(gene_locations, symbol==curr_gene()))})
+  snp_subs <- reactive({unique(filter(snp, symbol==curr_gene()))})
+  
     gene_tracks <- function() {
       validate(need(curr_gene() != "", "Please enter a gene id")) #Generate a error message when no gend id is input.
       validate(need(GeneSymbol() != FALSE, "Please enter a valid gene id.")) # Generate error message if the gene symbol is not right.
       validate(need(nrow(UserDataset_Info()) != 0, "Please choose at least one dataset.")) #Generate a error message when no data is loaded.
       
-      tfbs_subs <- unique(filter(tfbs, symbol==curr_gene()))
-      gene_subs <- unique(filter(gene_locations, symbol==curr_gene()))
-      gene_subs <- gene_subs[!(duplicated(gene_subs$exon)),] #else end up with the same exon many times
-      snp_subs <- unique(filter(snp, symbol==curr_gene()))
+      tfbs_subs <- tfbs_subs()
+      gene_subs <- gene_subs()
+      snp_subs <- snp_subs()
+
+      gene_subs <- gene_subs[!(duplicated(gene_subs$exon)),] 
       
       #constant for all tracks
       gen <- "hg19"
@@ -286,27 +290,28 @@ shinyServer(function(input, output, session) {
       if (nrow(tfbs_subs) > 0) {tfbs_track <- Gviz::AnnotationTrack(tfbs_subs, name="NR3C1 binding sites", fill = tfbs_subs$color, group = " ")}
       if (nrow(snp_subs) > 0) {snp_track <- Gviz::AnnotationTrack(snp_subs, name="SNPs", fill = snp_subs$color, group=snp_subs$pval_annot)}
 
-      #track sizes - defaults make scaling look weird
-       chrom_size <- 1
-       axis_size <- 1
-       gene_size <- 10
-       tfbs_size <- 2
-       snp_size <- 2 + nrow(snp_subs)/5 # snp track can get big if many SNPs associated with gene - expand to keep individual SNPs still visible
-      
+      #track sizes - defaults make scaling look weird as more tracks are added
+       chrom_size <- min(nrow(gene_subs),1.2)#1.2 + 0.005*nrow(gene_subs) + 0.005*nrow(snp_subs)
+       axis_size <- 1 + 0.005*nrow(gene_subs) + 0.005*nrow(snp_subs)
+       gene_size <- if (nrow(snp_subs) < 22) {min(0.5*nrow(gene_subs),6) + 0.005*nrow(snp_subs)} else {10}
+       tfbs_size <- min(nrow(gene_subs),2.5)#2 + 0.008*nrow(gene_subs) + 0.008*nrow(snp_subs)
+       snp_size <- max(0.15*nrow(snp_subs),1)
+       # snp track can get big if many SNPs associated with gene - expand to keep individual SNPs still visible
+
       #output depends on whether there is are TFBS & SNPs for a given gene    
       if ((nrow(tfbs_subs) > 0) & (nrow(snp_subs) > 0)) {
-          plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size,snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
+          plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size,snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
       } else if (nrow(tfbs_subs) > 0) {
-          plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size), col=NULL,  background.panel = "#d3cecc", background.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
+          plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size), col=NULL,  background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
       } else if (nrow(snp_subs) > 0) {
-          plotTracks(list(chrom_track, axis_track, gene_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
+          plotTracks(list(chrom_track, axis_track, gene_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
       } else {
-          plotTracks(list(chrom_track, axis_track, gene_track), sizes=c(chrom_size,axis_size,gene_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
+          plotTracks(list(chrom_track, axis_track, gene_track), sizes=c(chrom_size,axis_size,gene_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
       } 
   }
+     #reactive plot height: changes if more tracks are displayed
+     observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, height=min(60*nrow(gene_subs()), 600) + 5*(nrow(snp_subs())), width=1600)})
     
-    output$gene_tracks_outp <- renderPlot({gene_tracks()}, height=1200, width=1600)
-
   ######################
   ## Download buttons ##
   ######################
