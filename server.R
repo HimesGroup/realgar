@@ -9,6 +9,7 @@ library(forestplot)
 library(lattice)
 library(stringr)
 library(RColorBrewer)
+# library(viridis)
 library(DT)
 library(Gviz) 
 
@@ -40,6 +41,7 @@ for (i in ls()[grep("GSE", ls())]) {genes_avail <- unique(rbind(genes_avail, get
 
 output.table <- data.frame() # initiate output table - used later in output.tableforplot()
 heatmap_colors <- colorRampPalette(c("navyblue","darkgoldenrod1","darkorange2","firebrick4")) # heatmap colors - used in p-value plot
+# heatmap_colors <-  scale_color_viridis(option="magma", discrete=TRUE) # heatmap colors - used in p-value plot
 
 # server
 shinyServer(function(input, output, session) {
@@ -266,6 +268,10 @@ shinyServer(function(input, output, session) {
   gene_subs <- reactive({unique(filter(gene_locations, symbol==curr_gene()))})
   snp_subs <- reactive({unique(filter(snp, symbol==curr_gene()))})
   
+  # tfbs_subs <- unique(filter(tfbs, symbol=="IL1R1"))
+  # gene_subs <- unique(filter(gene_locations, symbol=="IL1R1"))
+  # snp_subs <- unique(filter(snp, symbol=="IL1R1"))
+
     gene_tracks <- function() {
       validate(need(curr_gene() != "", "Please enter a gene id")) #Generate a error message when no gend id is input.
       validate(need(GeneSymbol() != FALSE, "Please enter a valid gene id.")) # Generate error message if the gene symbol is not right.
@@ -300,7 +306,24 @@ shinyServer(function(input, output, session) {
 
       #output depends on whether there is are TFBS & SNPs for a given gene    
       if ((nrow(tfbs_subs) > 0) & (nrow(snp_subs) > 0)) {
-          plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size,snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
+          tracks_1 <- plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track, snp_track), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
+          
+          # track_sizes <- data.frame(matrix(nrow = nrow(coords(tracks_1$titles)), ncol=1))
+          # rownames(track_sizes) <- rownames(coords(tracks_1$titles))
+          # colnames(track_sizes) <- "curr_size"
+          # for (i in rownames(track_sizes)) {track_sizes[i,1] <- coords(tracks_1$titles)[i,"y2"] - coords(tracks_1$titles)[i,"y1"]}
+          # 
+          # #track sizes - defaults make scaling look weird as more tracks are added
+          # chrom_size <- track_sizes[1,]
+          # axis_size <- track_sizes[2,]
+          # gene_size <- track_sizes[3,]
+          # tfbs_size <- 3*track_sizes[4,]
+          # snp_size <- 3*track_sizes[5,]
+          # # snp track can get big if many SNPs associated with gene - expand to keep individual SNPs still visible
+          # 
+          # plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size, snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
+          # 
+          
       } else if (nrow(tfbs_subs) > 0) {
           plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size), col=NULL,  background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below")
       } else if (nrow(snp_subs) > 0) {
@@ -335,9 +358,11 @@ shinyServer(function(input, output, session) {
       filename= function(){paste0("-log(pval)_heatmap_", graphgene(), "_", Sys.Date(), ".png")},
       content=function(file){
           png(file)
-          pval_plot()
-          dev.off()})
-  
+          print(pval_plot()) # note that for this one, unlike other plot downloads, had to use print(). 
+          dev.off()})        # else the download is a blank file. this seems to be b/c pval_plot() creates a graph 
+                             # object but doesn't draw the plot, as per 
+                             # http://stackoverflow.com/questions/27008434/downloading-png-from-shiny-r-pt-2
+       
   output$gene_tracks_download <- downloadHandler(
       filename= function(){paste0("gene_tracks_", graphgene(), "_", Sys.Date(), ".png")},
       content=function(file){
