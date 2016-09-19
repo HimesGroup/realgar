@@ -9,7 +9,7 @@ library(forestplot)
 library(lattice)
 library(stringr)
 library(RColorBrewer)
-# library(viridis)
+library(viridis)
 library(DT)
 library(Gviz) 
 
@@ -40,8 +40,8 @@ genes_avail <- vector()
 for (i in ls()[grep("GSE", ls())]) {genes_avail <- unique(rbind(genes_avail, get(i)$SYMBOL))}
 
 output.table <- data.frame() # initiate output table - used later in output.tableforplot()
-heatmap_colors <- colorRampPalette(c("navyblue","darkgoldenrod1","darkorange2","firebrick4")) # heatmap colors - used in p-value plot
-# heatmap_colors <-  scale_color_viridis(option="magma", discrete=TRUE) # heatmap colors - used in p-value plot
+# heatmap_colors <- colorRampPalette(c("navyblue","darkgoldenrod1","darkorange2","firebrick4")) # heatmap colors - used in p-value plot
+heatmap_colors <-  inferno # heatmap colors - used in p-value plot
 
 # server
 shinyServer(function(input, output, session) {
