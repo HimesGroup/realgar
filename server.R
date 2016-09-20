@@ -59,14 +59,14 @@ shinyServer(function(input, output, session) {
   checkbox_choices <- c("Bronchial epithelium"="BE","Lens epithelial cell" = "LEC",
                         "Nasal epithelium"="NE","CD4"="CD4","CD8"="CD8","PBMC"="PBMC","White blood cell"="WBC", "Airway smooth muscle"="ASM",
                         "BAL"="BAL", "Whole lung"="Lung","Lymphoblastic leukemia cell" = "chALL","MCF10A-Myc" = "MCF10A-Myc",
-                        "Macrophage" = "MDM","Osteosarcoma U2OS cell" = "U2O", "Lymphoblastoid cell" = "LCL")
+                        "Macrophage" = "MACRO","Osteosarcoma U2OS cell" = "U2O", "Lymphoblastoid cell" = "LCL")
   observe({
       if(input$selectall == 0) return(NULL) 
       else if (input$selectall%%2 == 0)
       {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=checkbox_choices)}
       else
       {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=checkbox_choices,selected=c("BE", "LEC", "NE", "CD4", "CD8", "PBMC", "WBC", "ASM", "BAL", "Lung",
-                                                                                                 "chALL", "MCF10A-Myc", "MDM", "U2O", "LCL"))}})
+                                                                                                 "chALL", "MCF10A-Myc", "MACRO", "U2O", "LCL"))}})
   #######################
   ## GEO studies table ##
   #######################
@@ -174,7 +174,7 @@ shinyServer(function(input, output, session) {
       data_GC()%>%
           dplyr::select(Unique_ID, adj.P.Val, P.Value, Fold_Change, neglogofP, Lower_bound_CI, Upper_bound_CI) %>%
           dplyr::mutate(Fold_Change=round(Fold_Change,digits=2),adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), P.Value =format(P.Value, scientific=TRUE, digits=3), 
-                 Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2), Comparison = "Glucocorticoid treatment vs. placebo")%>%
+                 Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2), Comparison = "Glucocorticoid vs. control")%>%
           dplyr::rename(`Study ID`=Unique_ID, `P Value`=P.Value, `Q Value`=adj.P.Val, `Fold Change`=Fold_Change)})
   
   tableforgraph_GC <- reactive(data2_GC()%>% 
@@ -197,7 +197,7 @@ shinyServer(function(input, output, session) {
       text_asthma = data2_Asthma$`Study ID`
 
       xticks = seq(from = min(0.9, min(data2_Asthma$Lower_bound_CI)), to = max(max(data2_Asthma$Upper_bound_CI),1.2), length.out = 5)
-      forestplot(as.vector(text_asthma), title = "Asthma vs. non-asthma", data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")], zero = 1, 
+      forestplot(as.vector(text_asthma), title = "Asthma vs. Non-asthma", data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")], zero = 1, 
                  xlab = "Fold Change",ylab = "Studies", boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2, 
                  xticks = xticks, lineheight = unit((22.5/nrow(data2_Asthma)), "cm"), graphwidth = unit(4.5, "cm"),mar = unit(c(0,0,0,0),"mm"),
                  txt_gp = fpTxtGp(xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
@@ -209,7 +209,7 @@ shinyServer(function(input, output, session) {
       text_GC = data2_GC$`Study ID`
 
       xticks = seq(from = min(min(0.9, data2_GC$Lower_bound_CI)), to = max(max(data2_GC$Upper_bound_CI),1.2), length.out = 5)
-      forestplot(as.vector(text_GC), title = "Glucocorticoid treatment vs. placebo", data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")] ,zero = 1, 
+      forestplot(as.vector(text_GC), title = "Glucocorticoid vs. Control", data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")] ,zero = 1, 
                        xlab = "Fold Change",ylab = "Studies", boxsize = 0.15, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2,
                        xticks = xticks, lineheight = unit((22.5/nrow(data2_GC)), "cm"), graphwidth = unit(4.5, "cm"),mar = unit(c(0,0,0,0),"mm"),
                        txt_gp = fpTxtGp(xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
@@ -293,7 +293,7 @@ shinyServer(function(input, output, session) {
       gene_track <- Gviz::GeneRegionTrack(gene_subs, genome = gen, chromosome = chr, name = "Transcripts", transcriptAnnotation="transcript", fill = "royalblue")
       
       #tfbs and snp track - if statements b/c many genes don't have one
-      if (nrow(tfbs_subs) > 0) {tfbs_track <- Gviz::AnnotationTrack(tfbs_subs, name="NR3C1 binding sites", fill = tfbs_subs$color, group = " ")}
+      if (nrow(tfbs_subs) > 0) {tfbs_track <- Gviz::AnnotationTrack(tfbs_subs, name="GR binding sites", fill = tfbs_subs$color, group = " ")}
       if (nrow(snp_subs) > 0) {snp_track <- Gviz::AnnotationTrack(snp_subs, name="SNPs", fill = snp_subs$color, group=snp_subs$pval_annot)}
 
       #track sizes - defaults make scaling look weird as more tracks are added
@@ -343,21 +343,21 @@ shinyServer(function(input, output, session) {
   output$asthma_fc_download <- downloadHandler(
     filename= function(){paste0("fold_change_asthma_", graphgene(), "_", Sys.Date(), ".png")},
     content=function(file){
-      png(file)
+      png(file, width=6, height=9, units="in", res=600)
       forestplot_asthma()
       dev.off()})
   
   output$GC_fc_download <- downloadHandler(
       filename= function(){paste0("fold_change_GC_", graphgene(), "_", Sys.Date(), ".png")},
       content=function(file){
-          png(file)
+          png(file, width=6, height=9, units="in", res=600)
           forestplot_GC()
           dev.off()})
   
   output$pval_download <- downloadHandler(
       filename= function(){paste0("-log(pval)_heatmap_", graphgene(), "_", Sys.Date(), ".png")},
       content=function(file){
-          png(file)
+          png(file, width=12, height=18, units="in", res=600)
           print(pval_plot()) # note that for this one, unlike other plot downloads, had to use print(). 
           dev.off()})        # else the download is a blank file. this seems to be b/c pval_plot() creates a graph 
                              # object but doesn't draw the plot, as per 
@@ -366,7 +366,7 @@ shinyServer(function(input, output, session) {
   output$gene_tracks_download <- downloadHandler(
       filename= function(){paste0("gene_tracks_", graphgene(), "_", Sys.Date(), ".png")},
       content=function(file){
-          png(file)
+          png(file, width=8, height=4, units="in", res=600)
           gene_tracks()
           dev.off()})
   
