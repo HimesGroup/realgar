@@ -46,8 +46,8 @@ heatmap_colors <-  inferno # heatmap colors - used in p-value plot
 # server
 shinyServer(function(input, output, session) {
   
-  curr_gene <- reactive({toupper(input$curr_gene)}) #can recognize gene names even if typed lowercase
-  
+  curr_gene <- reactive({gsub(" ", "", toupper(input$curr_gene), fixed = TRUE)}) #can recognize gene names even if typed lowercase
+                                                                                 #also removes any spaces
   GeneSymbol <- reactive({
       if (curr_gene() %in% genes_avail) {TRUE} else {FALSE}  #For generating error message when a wrong gene symbol is input.
   })
@@ -278,6 +278,12 @@ shinyServer(function(input, output, session) {
   tfbs_subs <- reactive({unique(filter(tfbs, symbol==curr_gene()))})
   snp_subs <- reactive({unique(filter(snp, symbol==curr_gene()))})
 
+  
+  # gene_subs <- unique(filter(gene_locations, symbol=="ORMDL3"))
+  # gene_subs <- gene_subs[!(duplicated(gene_subs$exon)),] 
+  # tfbs_subs <- unique(filter(tfbs, symbol=="ORMDL3"))
+  # snp_subs <- unique(filter(snp, symbol=="ORMDL3"))
+  
     gene_tracks <- function() {
       validate(need(curr_gene() != "", "Please enter a gene id")) #Generate a error message when no gene id is input.
       validate(need(GeneSymbol() != FALSE, "Please enter a valid gene id.")) # Generate error message if the gene symbol is not right.
@@ -301,17 +307,18 @@ shinyServer(function(input, output, session) {
       if (nrow(snp_subs) > 0) {
           snp_track <- Gviz::AnnotationTrack(snp_subs, name="SNPs", fill = snp_subs$color, group=snp_subs$pval_annot)
           
-          # elaborate-ish way to estimate number of stacks in SNP track
+          # elaborate-ish way to estimate number of stacks in SNP track - for track scaling
           if (nrow(snp_subs) > 1) {
               snp_subs_temp <- snp_subs
+              snp_range <- max(snp_subs_temp$start) - min(snp_subs_temp$start)
               snp_subs_temp$start_prev <- c(0, snp_subs_temp$start[1:(nrow(snp_subs_temp)-1)]) 
               snp_subs_temp$dist <- as.numeric(snp_subs_temp$start) - as.numeric(snp_subs_temp$start_prev)
-              snp_size <- 2 + as.numeric(nrow(snp_subs()[which(snp_subs()$dist < 3000),])/2) + 0.8*length(unique(gene_subs$transcript))
-          } else {snp_size <- 1.2 + + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
+              snp_size <- 2 + as.numeric(nrow(snp_subs[which(snp_subs$dist < snp_range/10),])/2) + 0.8*length(unique(gene_subs$transcript))
+          } else {snp_size <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
           }
       }
 
-      #track sizes - defaults make scaling look weird as more tracks are added
+      #track sizes - defaults throw off scaling as more tracks are added
        chrom_size <- 1.2 + 0.01*length(unique(gene_subs$transcript)) + 0.01*nrow(snp_subs) 
        axis_size <- 1 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
        gene_size <- 2 + 0.6*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
@@ -329,7 +336,7 @@ shinyServer(function(input, output, session) {
       } 
   }
      #reactive plot height: changes if more tracks are displayed
-     observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, height=(max(65*length(unique(gene_subs()$transcript)), 400) + 10*(nrow(snp_subs()))), width=1600)})
+     observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, height=400 + 15*length(unique(gene_subs()$transcript)) + 10*(nrow(snp_subs())), width=1600)})
     
   ######################
   ## Download buttons ##
