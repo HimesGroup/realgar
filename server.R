@@ -27,7 +27,7 @@ snp <- fread("databases/grasp_output_for_app.txt", header = TRUE, stringsAsFacto
 gene_locations <- fread("databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location & transcript data from GENCODE
 
 #color tfbs based on binding score - used in tracks
-#create color scheme based on values
+#create color scheme based on values tfbs binding score & snp p-values
 getPalette = colorRampPalette(brewer.pal(9, "Blues"))
 tfbs$color <- getPalette(50)[as.numeric(cut(tfbs$score,breaks = 50))]
 snp$color <- getPalette(1024)[as.numeric(cut(-snp$p,breaks = 1024))]
@@ -40,7 +40,6 @@ genes_avail <- vector()
 for (i in ls()[grep("GSE", ls())]) {genes_avail <- unique(c(genes_avail, get(i)$SYMBOL))}
 
 output.table <- data.frame() # initiate output table - used later in output.tableforplot()
-# heatmap_colors <- colorRampPalette(c("navyblue","darkgoldenrod1","darkorange2","firebrick4")) # heatmap colors - used in p-value plot
 heatmap_colors <-  inferno # heatmap colors - used in p-value plot
 
 # server
@@ -48,10 +47,7 @@ shinyServer(function(input, output, session) {
   
   curr_gene <- reactive({gsub(" ", "", toupper(input$curr_gene), fixed = TRUE)}) #can recognize gene names even if typed lowercase
                                                                                  #also removes any spaces
-  GeneSymbol <- reactive({
-      if (curr_gene() %in% genes_avail) {TRUE} else {FALSE}  #For generating error message when a wrong gene symbol is input.
-  })
-  
+  GeneSymbol <- reactive({if (curr_gene() %in% genes_avail) {TRUE} else {FALSE}})  #used later to generate error message when a wrong gene symbol is input
   
   ##############################################
   ## "Select all" button for tissue selection ##
@@ -186,10 +182,11 @@ shinyServer(function(input, output, session) {
                                                  rownames = FALSE, 
                                                  options = list(paging = FALSE, searching = FALSE),
                                                  width = "100%")
-  
   #################
   ## Forestplots ##
   #################
+  
+  #asthma forestplot
   forestplot_asthma <- function(){
       data2_Asthma = data2_Asthma()
       validate(need(nrow(data2_Asthma) != 0, "Please choose a dataset.")) #Generate the user-friendly error message
@@ -201,7 +198,7 @@ shinyServer(function(input, output, session) {
                  xlab = "Fold Change",ylab = "Studies", boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2, 
                  xticks = xticks, lineheight = unit((22.5/nrow(data2_Asthma)), "cm"), graphwidth = unit(4.5, "cm"),mar = unit(c(0,0,0,0),"mm"),
                  txt_gp = fpTxtGp(xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
-
+  #GC forestplot
   forestplot_GC <- function(){
       data2_GC = data2_GC()
       validate(need(nrow(data2_GC) != 0, "Please choose a dataset."))
@@ -233,7 +230,7 @@ shinyServer(function(input, output, session) {
   
   output.tableforplot2_asthma <- reactive({data3_Asthma() %>% dplyr::rename(' '=Fold_Change, ' '=neglogofP)})
   heatmapMAT_asthma <- reactive({output.tableforplot2_asthma()})
-  pval_data_asthma <- reactive({t(heatmapMAT_asthma()[10])}) #It's 5 in Maya's script. I have add some columns in the table so this number is changed.
+  pval_data_asthma <- reactive({t(heatmapMAT_asthma()[10])}) 
   
   #GC data
   data3_GC <- reactive({
@@ -245,12 +242,9 @@ shinyServer(function(input, output, session) {
   
   output.tableforplot2_GC <- reactive({data3_GC() %>% dplyr::rename(' '=Fold_Change, ' '=neglogofP)})
   heatmapMAT_GC <- reactive({output.tableforplot2_GC()})
-  pval_data_GC <- reactive({t(heatmapMAT_GC()[10])}) #It's 5 in Maya's script. I have add some columns in the table so this number is changed.
+  pval_data_GC <- reactive({t(heatmapMAT_GC()[10])}) 
   
-  #set up max boundary for levelplot (min is fixed at 0) - now max is also fixed
-  # maxNLOP <- reactive({if(max(pval_data())<=1.5 & min(pval_data())>=-1.5){maxNLOP=1.5} else {maxNLOP=max(pval_data())}})
-  
-  # levelplot for log p-value
+  # levelplot for log p-value - combines asthma and GC data
   pval_plot <- function() {
       levelplot(cbind(pval_data_GC(), pval_data_asthma()),
                 col.regions=heatmap_colors,
@@ -270,19 +264,12 @@ shinyServer(function(input, output, session) {
   ## Gene, SNP and TFBS tracks ##
   ###############################
   
+  #filter data for selected gene
   gene_subs <- reactive({
       gene_subs_temp <- unique(filter(gene_locations, symbol==curr_gene()))
-      gene_subs_temp <- gene_subs_temp[!(duplicated(gene_subs_temp$exon)),] 
-  })
-  
+      gene_subs_temp <- gene_subs_temp[!(duplicated(gene_subs_temp$exon)),]})
   tfbs_subs <- reactive({unique(filter(tfbs, symbol==curr_gene()))})
   snp_subs <- reactive({unique(filter(snp, symbol==curr_gene()))})
-
-  
-  # gene_subs <- unique(filter(gene_locations, symbol=="ORMDL3"))
-  # gene_subs <- gene_subs[!(duplicated(gene_subs$exon)),] 
-  # tfbs_subs <- unique(filter(tfbs, symbol=="ORMDL3"))
-  # snp_subs <- unique(filter(snp, symbol=="ORMDL3"))
   
     gene_tracks <- function() {
       validate(need(curr_gene() != "", "Please enter a gene id")) #Generate a error message when no gene id is input.
@@ -298,23 +285,23 @@ shinyServer(function(input, output, session) {
       chr <- unique(gene_subs$chromosome)
       
       #chromosome, axis and gene - these tracks show up for all genes
-      chrom_track <- IdeogramTrack(genome = gen, chromosome = chr) # this step slows the app down...but only the first time?
+      chrom_track <- IdeogramTrack(genome = gen, chromosome = chr) 
       axis_track <- GenomeAxisTrack()
       gene_track <- Gviz::GeneRegionTrack(gene_subs, genome = gen, chromosome = chr, name = "Transcripts", transcriptAnnotation="transcript", fill = "royalblue")
       
-      #tfbs and snp track - if statements b/c many genes don't have one
+      #tfbs and snp track - only present for some genes
       if (nrow(tfbs_subs) > 0) {tfbs_track <- Gviz::AnnotationTrack(tfbs_subs, name="GR binding", fill = tfbs_subs$color, group = " ")}
       if (nrow(snp_subs) > 0) {
           snp_track <- Gviz::AnnotationTrack(snp_subs, name="SNPs", fill = snp_subs$color, group=snp_subs$pval_annot)
           
-          # elaborate-ish way to estimate number of stacks in SNP track - for track scaling
+          #rough estimate of number of stacks there will be in SNP track - for track scaling
           if (nrow(snp_subs) > 1) {
               snp_subs_temp <- snp_subs
               snp_range <- max(snp_subs_temp$start) - min(snp_subs_temp$start)
               snp_subs_temp$start_prev <- c(0, snp_subs_temp$start[1:(nrow(snp_subs_temp)-1)]) 
               snp_subs_temp$dist <- as.numeric(snp_subs_temp$start) - as.numeric(snp_subs_temp$start_prev)
-              snp_size <- 2 + as.numeric(nrow(snp_subs[which(snp_subs$dist < snp_range/10),])/2) + 0.8*length(unique(gene_subs$transcript))
-          } else {snp_size <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
+              snp_size_init <- 2 + as.numeric(nrow(snp_subs[which(snp_subs$dist < snp_range/10),])/2) + 0.8*length(unique(gene_subs$transcript))
+          } else {snp_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
           }
       }
 
@@ -323,8 +310,9 @@ shinyServer(function(input, output, session) {
        axis_size <- 1 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
        gene_size <- 2 + 0.6*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
        tfbs_size <- 2 + 0.075*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
-
-      #output depends on whether there is are TFBS & SNPs for a given gene    
+       snp_size <- snp_size_init #from above
+       
+      #output depends on whether there are TFBS and/or SNPs for a given gene    
       if ((nrow(tfbs_subs) > 0) & (nrow(snp_subs) > 0)) {
           plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size, snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
       } else if (nrow(tfbs_subs) > 0) {
@@ -335,7 +323,7 @@ shinyServer(function(input, output, session) {
           plotTracks(list(chrom_track, axis_track, gene_track), sizes=c(chrom_size,axis_size,gene_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
       } 
   }
-     #reactive plot height: changes if more tracks are displayed
+     #plot height increases if more tracks are displayed
      observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, height=400 + 15*length(unique(gene_subs()$transcript)) + 10*(nrow(snp_subs())), width=1600)})
     
   ######################
