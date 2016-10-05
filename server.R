@@ -301,9 +301,8 @@ shinyServer(function(input, output, session) {
               snp_subs_temp$start_prev <- c(0, snp_subs_temp$start[1:(nrow(snp_subs_temp)-1)]) 
               snp_subs_temp$dist <- as.numeric(snp_subs_temp$start) - as.numeric(snp_subs_temp$start_prev)
               snp_size_init <- 2 + as.numeric(nrow(snp_subs[which(snp_subs$dist < snp_range/10),])/2) + 0.8*length(unique(gene_subs$transcript))
-          } else {snp_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
-          }
-      }
+          } else {snp_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)}
+      } else {snp_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)}
 
       #track sizes - defaults throw off scaling as more tracks are added
        chrom_size <- 1.2 + 0.01*length(unique(gene_subs$transcript)) + 0.01*nrow(snp_subs) 
