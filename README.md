@@ -1,4 +1,4 @@
-# Reducing Associations by Linking Genes And transcriptomic Results (REALGAR)
+## Reducing Associations by Linking Genes And transcriptomic Results (REALGAR)
 
 Genetic association studies (genome-wide association studies, whole-genome sequencing studies, etc.), have uncovered many novel disease-associated variants, but few of these disease-associated regions have led to clinically actionable insights.  The gap between genetic associations and practical applications is due in part to the difficulty of designing functional validation studies which capture the complexity of the mechanisms in question.   
 
