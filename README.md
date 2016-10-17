@@ -1,2 +1,3 @@
-# realgar
-Reducing Associations by Linking Genes And transcriptomic Results (REALGAR)
+# Reducing Associations by Linking Genes And transcriptomic Results (REALGAR)
+
+REALGAR is an integrated resource of tissue-specific results from expression studies. This app brings together microarray expression data from the Gene Expression Omnibus (GEO), transcript data from GENCODE, genome-wide association study (GWAS) data from GRASP and glucocorticoid receptor binding sites from UCSC's ENCODE allowing researchers to access a breadth of information with a click. We hope REALGAR's disease-specific and tissue specific information will facilitate prioritization and experiment design, leading to clinically actionable insights.
