@@ -4,6 +4,6 @@ Genetic association studies (genome-wide association studies, whole-genome seque
 
 REALGAR is an integrated resource of disease-specific, tissue-specific results from expression studies which aims to simplify functional validation experiment design. Using asthma as a disease model, this app brings together 'omics data, including genome-wide association study (GWAS) data from GRASP, microarray expression data from the Gene Expression Omnibus (GEO), transcript data from GENCODE and glucocorticoid receptor binding sites from ENCODE, allowing researchers to access a breadth of information with a click. REALGAR's disease-specific and tissue-specific information will help guide validation experiments for gene associations, with the aim of discovering clinically actionable insights.
 
-### Dependencies
+##### Dependencies
 
 To run REALGAR locally, R should be available.  REALGAR requires the following R packages to be installed: shinythemes, shiny, dplyr, data.table, forestplot, lattice, stringr, RColorBrewer, viridis, DT and Gviz.
