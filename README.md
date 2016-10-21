@@ -10,4 +10,4 @@ REALGAR is an integrated resource of disease-specific, tissue-specific results f
 
 ### Dependencies
 
-REALGAR was created using RStudio's Shiny.  To run REALGAR locally, R should be available.  REALGAR requires the following R packages to be installed: shinythemes, shiny, dplyr, data.table, forestplot, lattice, stringr, RColorBrewer, viridis, DT and Gviz.
+REALGAR was created using RStudio's Shiny.  To run REALGAR locally, R should be available.  The following packages should be installed: shinythemes, shiny, dplyr, data.table, forestplot, lattice, stringr, RColorBrewer, viridis, DT and Gviz.
