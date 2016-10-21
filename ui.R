@@ -45,9 +45,9 @@ ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"),
                         
                         mainPanel(hr(),
                                   fluidRow(br(),
-                                           column(4,plotOutput(outputId="forestplot_asthma",width="auto", height="650px"),align="left"),
-                                           column(3,plotOutput(outputId="forestplot_GC",width="auto", height="650px"),align="left"),
-                                           column(5,plotOutput(outputId="pval_plot_outp",width="auto", height="650px"),align="left"),
+                                           column(plotOutput(outputId="forestplot_asthma",width="auto"),align="left"),
+                                           column(plotOutput(outputId="forestplot_GC",width="auto"),align="right"),
+                                           column(plotOutput(outputId="pval_plot_outp",width="auto"),align="center"),
                                            column(4, downloadButton(outputId="asthma_fc_download",label="Download asthma forest plot"), align="center"),
                                            column(4, downloadButton(outputId="GC_fc_download",label="Download GC forest plot"), align="center"),
                                            column(4, downloadButton(outputId="pval_download", label="Download p-value plot"), align="center")),
@@ -69,4 +69,4 @@ ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"),
                                                         "All SNP p-values are <=0.05 and are obtained directly",
                                                         "from the study in which the association was published.")),
                                            column(12, downloadButton(outputId="gene_tracks_download", label="Download gene tracks"), align="center"), br(),
-                                           column(12, align="center", plotOutput(outputId="gene_tracks_outp2"), br())))))
+                                           column(12, align="center", plotOutput(outputId="gene_tracks_outp2"), br(), br())))))
