@@ -195,9 +195,9 @@ shinyServer(function(input, output, session) {
 
       xticks = seq(from = min(0.9, min(data2_Asthma$Lower_bound_CI)), to = max(max(data2_Asthma$Upper_bound_CI),1.2), length.out = 5)
       forestplot(as.vector(text_asthma), title = "Asthma vs. Non-asthma", data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")], zero = 1, 
-                 xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2, 
-                 xticks = xticks, lineheight = unit((22.5/nrow(data2_Asthma)), "cm"),mar = unit(c(5,0,0,5),"mm"),
-                 txt_gp = fpTxtGp(cex = 1, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
+                 xlab = "Fold Change",ylab = "Studies", boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2, 
+                 xticks = xticks, lineheight = unit((22.5/nrow(data2_Asthma)), "cm"), graphwidth = unit(4.5, "cm"),mar = unit(c(0,0,0,0),"mm"),
+                 txt_gp = fpTxtGp(xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
   #GC forestplot
   forestplot_GC <- function(){
       data2_GC = data2_GC()
@@ -207,12 +207,12 @@ shinyServer(function(input, output, session) {
 
       xticks = seq(from = min(min(0.9, data2_GC$Lower_bound_CI)), to = max(max(data2_GC$Upper_bound_CI),1.2), length.out = 5)
       forestplot(as.vector(text_GC), title = "Glucocorticoid vs. Control", data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")] ,zero = 1, 
-                       xlab = "Fold Change",boxsize = 0.15, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2,
-                       xticks = xticks, lineheight = unit((22.5/(nrow(data2_GC))), "cm"),mar = unit(c(5,0,0,10),"mm"),
-                       txt_gp = fpTxtGp(cex = 1, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
+                       xlab = "Fold Change",ylab = "Studies", boxsize = 0.15, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2,
+                       xticks = xticks, lineheight = unit((22.5/nrow(data2_GC)), "cm"), graphwidth = unit(4.5, "cm"),mar = unit(c(0,0,0,0),"mm"),
+                       txt_gp = fpTxtGp(xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
   
-  output$forestplot_asthma = renderPlot({forestplot_asthma()}, height=650)
-  output$forestplot_GC = renderPlot({forestplot_GC()}, height=650)
+  output$forestplot_asthma = renderPlot(forestplot_asthma())
+  output$forestplot_GC = renderPlot(forestplot_GC())
   
   #######################
   ## p-value levelplot ##
@@ -252,9 +252,9 @@ shinyServer(function(input, output, session) {
                 ylab = NULL,
                 main = "-log10(adjusted p-value)",
                 pretty = FALSE,
-                aspect = 14,
-                label.style = "align",
-                scales=list(x=list(cex=0.75, tck = c(0,0,0,0)),
+                aspect = 2,
+                width = 3,
+                scales=list(x=list(cex=1, tck = c(0,0,0,0)),
                             y=list(cex=1, tck = c(1,0,0,0))),
                 at=seq(0,8,length.out=100))}
   
@@ -323,8 +323,8 @@ shinyServer(function(input, output, session) {
       } 
   }
      #plot height increases if more tracks are displayed
-     observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, height=400 + 15*length(unique(gene_subs()$transcript)) + 10*(nrow(snp_subs())), width=1055)})
-                                                 
+     observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, height=400 + 15*length(unique(gene_subs()$transcript)) + 10*(nrow(snp_subs())), width=1600)})
+    
   ######################
   ## Download buttons ##
   ######################
@@ -347,7 +347,7 @@ shinyServer(function(input, output, session) {
   output$pval_download <- downloadHandler(
       filename= function(){paste0("-log(pval)_heatmap_", graphgene(), "_", Sys.Date(), ".png")},
       content=function(file){
-          png(file, width=6, height=9, units="in", res=600)
+          png(file, width=12, height=18, units="in", res=600)
           print(pval_plot()) # note that for this one, unlike other plot downloads, had to use print(). 
           dev.off()})        # else the download is a blank file. this seems to be b/c pval_plot() creates a graph 
                              # object but doesn't draw the plot, as per 
