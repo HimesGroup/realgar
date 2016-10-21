@@ -2,7 +2,7 @@ library(shinythemes)
 
 # Define UI for application that displays GEO results based on user choices
 ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"), 
-                        h1(strong("REALGAR"), align="center", style = "color: #9E443A;"),
+                        #h1(strong("REALGAR"), align="center", style = "color: #9E443A;"),
                         h3(strong("Reducing Associations by Linking Genes And transcriptomic Results"), align="center", style = "color: #9E443A;"), hr(),
                         p("REALGAR is an integrated resource of tissue-specific results from expression studies. ",
                           "This app brings together microarray expression data from the ", 

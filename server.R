@@ -14,17 +14,17 @@ library(DT) #needed
 library(Gviz) #needed
 
 # load dataset descriptions
-Dataset_Info <- read.csv("../databases/microarray_data_infosheet_R.csv")
+Dataset_Info <- read.csv("databases/microarray_data_infosheet_R.csv")
 Dataset_Info$Unique_ID <- apply(Dataset_Info[, c("GEO_ID", "Tissue", "Asthma")], 1, paste, collapse="_")
 
 #load and name datasets
 for (i in Dataset_Info$Unique_ID) {
-    assign(i, fread(paste0("../databases/microarray_results/", i,".csv"), sep=","))}
+    assign(i, fread(paste0("databases/microarray_results/", i,".csv"), sep=","))}
 Dataset_Info[is.na(Dataset_Info$PMID),"PMID"] <- ""
 
-tfbs <- fread("../databases/tfbs_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #TFBS data from ENCODE - matched to gene ids using bedtools
-snp <- fread("../databases/grasp_output_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #SNP data from GRASP - matched to gene ids using bedtools
-gene_locations <- fread("../databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location & transcript data from GENCODE
+tfbs <- fread("databases/tfbs_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #TFBS data from ENCODE - matched to gene ids using bedtools
+snp <- fread("databases/grasp_output_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #SNP data from GRASP - matched to gene ids using bedtools
+gene_locations <- fread("databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location & transcript data from GENCODE
 
 #color tfbs based on binding score - used in tracks
 #create color scheme based on values tfbs binding score & snp p-values
