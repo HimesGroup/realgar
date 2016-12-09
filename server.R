@@ -45,8 +45,14 @@ heatmap_colors <-  inferno # heatmap colors - used in p-value plot
 # server
 shinyServer(function(input, output, session) {
   
-  curr_gene <- reactive({gsub(" ", "", toupper(input$curr_gene), fixed = TRUE)}) #can recognize gene names even if typed lowercase
-                                                                                 #also removes any spaces
+    curr_gene <- reactive({
+      if (tolower(input$curr_gene) %in% snp$snp) { #if SNP ID is entered, convert internally to corresponding gene symbol  
+          snp$symbol[which(snp$snp==input$curr_gene)]
+          } else {
+          gsub(" ", "", toupper(input$curr_gene), fixed = TRUE) #make uppercase, remove spaces
+          }
+      }) 
+    
   GeneSymbol <- reactive({if (curr_gene() %in% genes_avail) {TRUE} else {FALSE}})  #used later to generate error message when a wrong gene symbol is input
   
   ##############################################
@@ -103,7 +109,7 @@ shinyServer(function(input, output, session) {
   #select and modify data used for plots and accompanying table
   output.tableforplot <- reactive({
       validate(need(nrow(UserDataset_Info()) != 0, "Please choose at least one dataset.")) #Generate a error message when no data is loaded.
-      validate(need(curr_gene() != "", "Please enter a gene id")) #Generate a error message when no gene id is input.
+      validate(need(curr_gene() != "", "Please enter a gene symbol or SNP ID.")) #Generate a error message when no gene id is input.
       
   #select data for the gene currently selected
   data_filter <- function(x){
@@ -136,7 +142,7 @@ shinyServer(function(input, output, session) {
   
     #preparing the data for levelplots
     #calculate the fold change, order by fold change for levelplots
-  validate(need(GeneSymbol() != FALSE, "Please enter a valid gene id.")) # Generate error message if the gene symbol is not right.
+  validate(need(GeneSymbol() != FALSE, "Please enter a valid gene symbol or SNP ID.")) # Generate error message if the gene symbol is not right.
   output.table <- dplyr::mutate(output.table, Fold_Change=2^(logFC), neglogofP=(-log10(adj.P.Val)), Lower_bound_CI = 2^(lower), Upper_bound_CI = 2^(upper)) #note that this is taking -log10 of adjusted p-value
   row.names(output.table) <- output.table$Unique_ID #crucial for plot labels on levelplot
   output.table <- output.table[order(output.table$Fold_Change),]})
@@ -187,28 +193,59 @@ shinyServer(function(input, output, session) {
   #################
   
   #asthma forestplot
-  forestplot_asthma <- function(){
+  forestplot_asthma <- function() {
+      
       data2_Asthma = data2_Asthma()
-      validate(need(nrow(data2_Asthma) != 0, "Please choose a dataset.")) #Generate the user-friendly error message
+      validate(need(nrow(data2_Asthma) != 0, "Please choose a dataset.")) 
+      
+      # function to color forestplot lines and boxes by -log10 of adjusted pvalue - always relative to the max of 8
+      color_fn <- local({
+          i <- 0
+          breaks <- c(seq(0,8,by=0.001), Inf) # this sets max universally at 8 (else highest one OF THE SUBSET would be the max)
+          b_clrs <- l_clrs <- inferno(length(breaks))[as.numeric(cut(data2_Asthma$neglogofP, breaks = breaks))]
+
+          function(..., clr.line, clr.marker){
+              i <<- i + 1
+              fpDrawNormalCI(..., clr.line = l_clrs[i], clr.marker = b_clrs[i])
+          }
+      })
       
       text_asthma = data2_Asthma$`Study ID`
       
       xticks = seq(from = min(0.9, min(data2_Asthma$Lower_bound_CI)), to = max(max(data2_Asthma$Upper_bound_CI),1.2), length.out = 5)
+      
+      # rect(par("usr")[1],par("usr")[3],par("usr")[2],par("usr")[4],col = "gray")
+      
       forestplot(as.vector(text_asthma), title = "Asthma vs. Non-asthma", data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")], zero = 1, 
                  xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2, 
-                 xticks = xticks, lineheight = unit((22.5/nrow(data2_Asthma)), "cm"),mar = unit(c(5,0,0,5),"mm"),
-                 txt_gp = fpTxtGp(cex = 1, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
+                 xticks = xticks, lineheight = unit((22.5/nrow(data2_Asthma)), "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
+                 txt_gp = fpTxtGp(cex = 1, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))
+  }
+  
   #GC forestplot
   forestplot_GC <- function(){
+      
       data2_GC = data2_GC()
       validate(need(nrow(data2_GC) != 0, "Please choose a dataset."))
+      
+      # function to color forestplot lines and boxes by -log10 of adjusted pvalue - always relative to the max of 8
+      color_fn <- local({
+          i <- 0
+          breaks <- c(seq(0,8,by=0.001), Inf) # this sets max universally at 8 (else highest one OF THE SUBSET would be the max)
+          b_clrs <- l_clrs <- inferno(length(breaks))[as.numeric(cut(data2_GC$neglogofP, breaks = breaks))]
+          
+          function(..., clr.line, clr.marker){
+              i <<- i + 1
+              fpDrawNormalCI(..., clr.line = l_clrs[i], clr.marker = b_clrs[i])
+          }
+      })
       
       text_GC = data2_GC$`Study ID`
       
       xticks = seq(from = min(min(0.9, data2_GC$Lower_bound_CI)), to = max(max(data2_GC$Upper_bound_CI),1.2), length.out = 5)
       forestplot(as.vector(text_GC), title = "Glucocorticoid vs. Control", data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")] ,zero = 1, 
                  xlab = "Fold Change",boxsize = 0.15, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2,
-                 xticks = xticks, lineheight = unit((22.5/(nrow(data2_GC))), "cm"),mar = unit(c(5,0,0,10),"mm"),
+                 xticks = xticks, lineheight = unit((22.5/(nrow(data2_GC))), "cm"),mar = unit(c(5,0,0,10),"mm"), fn.ci_norm = color_fn,
                  txt_gp = fpTxtGp(cex = 1, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
   
   output$forestplot_asthma = renderPlot({forestplot_asthma()}, height=650)
@@ -272,8 +309,8 @@ shinyServer(function(input, output, session) {
   snp_subs <- reactive({unique(filter(snp, symbol==curr_gene()))})
   
     gene_tracks <- function() {
-      validate(need(curr_gene() != "", "Please enter a gene id")) #Generate a error message when no gene id is input.
-      validate(need(GeneSymbol() != FALSE, "Please enter a valid gene id.")) # Generate error message if the gene symbol is not right.
+      validate(need(curr_gene() != "", "Please enter a gene symbol or SNP ID.")) #Generate a error message when no gene id is input.
+      validate(need(GeneSymbol() != FALSE, "Please enter a valid gene symbol or SNP ID.")) # Generate error message if the gene symbol is not right.
       validate(need(nrow(UserDataset_Info()) != 0, "Please choose at least one dataset.")) #Generate a error message when no data is loaded.
       
       gene_subs <- gene_subs()
