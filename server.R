@@ -214,7 +214,7 @@ shinyServer(function(input, output, session) {
       
       xticks = seq(from = min(0.9, min(data2_Asthma$Lower_bound_CI)), to = max(max(data2_Asthma$Upper_bound_CI),1.2), length.out = 5)
       
-      # rect(par("usr")[1],par("usr")[3],par("usr")[2],par("usr")[4],col = "gray")
+      ## rect(par("usr")[1],par("usr")[3],par("usr")[2],par("usr")[4],col = "gray")
       
       forestplot(as.vector(text_asthma), title = "Asthma vs. Non-asthma", data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")], zero = 1, 
                  xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2, 
