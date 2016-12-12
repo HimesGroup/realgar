@@ -215,15 +215,17 @@ shinyServer(function(input, output, session) {
       
       xticks = seq(from = min(0.9, min(data2_Asthma$Lower_bound_CI)), to = max(max(data2_Asthma$Upper_bound_CI),1.2), length.out = 5)
       
-      # rect(par("usr")[1],par("usr")[3],par("usr")[2],par("usr")[4],col = "gray")
+      
       tabletext <- matrix(nrow=1, ncol=4)
-      tabletext[1,] <- c("Study ID", "Tissue", "Comparison", "Treatment")
-      tabletext <- rbind(tabletext,as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_Asthma$`Study ID`),c(11,3,4,6)]))
+      tabletext[1,] <- c("GEO ID", "Tissue", "Endotype", "Q Value")
+      text_temp <- cbind(as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_Asthma$`Study ID`),c(1,11,4)]), data2_Asthma$`Q Value`)
+      tabletext <- rbind(tabletext,text_temp)
+
       
       forestplot(tabletext, title = "Asthma vs. Non-asthma", rbind(c(NA,NA,NA,NA),data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]), zero = 1, 
                  xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2, 
-                 xticks = xticks, lineheight = unit((21/nrow(data2_Asthma)), "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
-                 txt_gp = fpTxtGp(cex = 1, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))
+                 xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_Asthma))), lineheight = unit((19/nrow(data2_Asthma)), "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
+                 txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)))
   }
   
   #GC forestplot
@@ -249,13 +251,15 @@ shinyServer(function(input, output, session) {
       xticks = seq(from = min(min(0.9, data2_GC$Lower_bound_CI)), to = max(max(data2_GC$Upper_bound_CI),1.2), length.out = 5)
       
       tabletext <- matrix(nrow=1, ncol=4)
-      tabletext[1,] <- c("Study ID", "Tissue", "Comparison", "Treatment")
-      tabletext <- rbind(tabletext,as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_GC$`Study ID`),c(11,3,4,6)]))
+      tabletext[1,] <- c("GEO ID", "Tissue", "Treatment", "Q Value")
+      text_temp <- cbind(as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_GC$`Study ID`),c(1,11,6)]), data2_GC$`Q Value`)
+      tabletext <- rbind(tabletext,text_temp)
       
+      par(bg = "thistle")
       forestplot(tabletext, title = "Glucocorticoid vs. Control", rbind(c(NA,NA,NA,NA),data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]) ,zero = 1, 
                  xlab = "Fold Change",boxsize = 0.15, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2,
-                 xticks = xticks, lineheight = unit((21/(nrow(data2_GC))), "cm"),mar = unit(c(5,0,0,10),"mm"), fn.ci_norm = color_fn,
-                 txt_gp = fpTxtGp(cex = 1, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.2)))}
+                 xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_GC))), lineheight = unit((15/(nrow(data2_GC))), "cm"),mar = unit(c(5,0,0,10),"mm"), fn.ci_norm = color_fn,
+                 txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)))}
   
   output$forestplot_asthma = renderPlot({forestplot_asthma()}, height=650)
   output$forestplot_GC = renderPlot({forestplot_GC()}, height=650)
