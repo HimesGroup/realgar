@@ -1,5 +1,5 @@
 library(shinythemes)
-#
+
 # Define UI for application that displays GEO results based on user choices
 ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"), 
                         #h1(strong("REALGAR"), align="center", style = "color: #9E443A;"),
