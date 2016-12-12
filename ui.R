@@ -1,4 +1,3 @@
-#
 library(shinythemes)
 
 # Define UI for application that displays GEO results based on user choices
