@@ -13,7 +13,6 @@ library(viridis) #needed
 library(DT) #needed
 library(Gviz) #needed
 
-
 # load dataset descriptions
 Dataset_Info <- read.csv("databases/microarray_data_infosheet_R.csv")
 Dataset_Info$Unique_ID <- apply(Dataset_Info[, c("GEO_ID", "Tissue", "Asthma")], 1, paste, collapse="_")
