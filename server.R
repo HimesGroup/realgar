@@ -1,7 +1,7 @@
 # detach("package:Gviz", unload=TRUE) # this is to keep RStudio happy - run if loading app more than once in same session - keep commented out otherwise
                                     # if load Gviz 2x in same session (i.e. close & re-run app), get "object of type 'closure' is not subsettable" error
                                     # should not be an issue when running app from the website
-                                             
+cat(file=stderr(), "start package_load\n")                                            
 library(shiny)
 library(dplyr)
 library(data.table)
@@ -12,19 +12,29 @@ library(RColorBrewer)
 library(viridis) #needed
 library(DT) #needed
 library(Gviz) #needed
+cat(file=stderr(), "end package_load\n")
 
 # load dataset descriptions
 Dataset_Info <- read.csv("databases/microarray_data_infosheet_R.csv")
+cat(file=stderr(), "Dataset_Info\n")
 Dataset_Info$Unique_ID <- apply(Dataset_Info[, c("GEO_ID", "Tissue", "Asthma")], 1, paste, collapse="_")
 
 #load and name datasets
+cat(file=stderr(), as.character(Sys.time()), " start data load\n")
+
 for (i in Dataset_Info$Unique_ID) {
+    cat(file=stderr(), i, "\n")
     assign(i, fread(paste0("databases/microarray_results/", i,".csv"), sep=","))}
 Dataset_Info[is.na(Dataset_Info$PMID),"PMID"] <- ""
+cat(file=stderr(), as.character(Sys.time()), " end data load\n")
 
 tfbs <- fread("databases/tfbs_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #TFBS data from ENCODE - matched to gene ids using bedtools
+cat(file=stderr(), "tfbs\n")
 snp <- fread("databases/grasp_output_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #SNP data from GRASP - matched to gene ids using bedtools
+cat(file=stderr(), "snp\n")
 gene_locations <- fread("databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location & transcript data from GENCODE
+cat(file=stderr(), "gene_locations\n")
+chrom_bands <- fread("databases/chrom_bands.csv", header=TRUE, stringsAsFactors = FALSE) #chromosome band info for ideogram - faster this way
 
 #color tfbs based on binding score - used in tracks
 #create color scheme based on values tfbs binding score & snp p-values
@@ -314,67 +324,74 @@ shinyServer(function(input, output, session) {
   ## Gene, SNP and TFBS tracks ##
   ###############################
   
-  # #filter data for selected gene
-  # gene_subs <- reactive({
-  #     gene_subs_temp <- unique(filter(gene_locations, symbol==curr_gene()))
-  #     gene_subs_temp <- gene_subs_temp[!(duplicated(gene_subs_temp$exon)),]})
-  # tfbs_subs <- reactive({unique(filter(tfbs, symbol==curr_gene()))})
-  # snp_subs <- reactive({unique(filter(snp, symbol==curr_gene()))})
-  # 
-  #   gene_tracks <- function() {
-  #     validate(need(curr_gene() != "", "Please enter a gene symbol or SNP ID.")) #Generate a error message when no gene id is input.
-  #     validate(need(GeneSymbol() != FALSE, "Please enter a valid gene symbol or SNP ID.")) # Generate error message if the gene symbol is not right.
-  #     validate(need(nrow(UserDataset_Info()) != 0, "Please choose at least one dataset.")) #Generate a error message when no data is loaded.
-  #     
-  #     gene_subs <- gene_subs()
-  #     tfbs_subs <- tfbs_subs()
-  #     snp_subs <- snp_subs()
-  # 
-  #     #constant for all tracks
-  #     gen <- "hg19"
-  #     chr <- unique(gene_subs$chromosome)
-  #     
-  #     #chromosome, axis and gene - these tracks show up for all genes
-  #     chrom_track <- IdeogramTrack(genome = gen, chromosome = chr) 
-  #     axis_track <- GenomeAxisTrack()
-  #     gene_track <- Gviz::GeneRegionTrack(gene_subs, genome = gen, chromosome = chr, name = "Transcripts", transcriptAnnotation="transcript", fill = "royalblue")
-  #     
-  #     #tfbs and snp track - only present for some genes
-  #     if (nrow(tfbs_subs) > 0) {tfbs_track <- Gviz::AnnotationTrack(tfbs_subs, name="GR binding", fill = tfbs_subs$color, group = " ")}
-  #     if (nrow(snp_subs) > 0) {
-  #         snp_track <- Gviz::AnnotationTrack(snp_subs, name="SNPs", fill = snp_subs$color, group=snp_subs$pval_annot)
-  #         
-  #         #rough estimate of number of stacks there will be in SNP track - for track scaling
-  #         if (nrow(snp_subs) > 1) {
-  #             snp_subs_temp <- snp_subs
-  #             snp_range <- max(snp_subs_temp$start) - min(snp_subs_temp$start)
-  #             snp_subs_temp$start_prev <- c(0, snp_subs_temp$start[1:(nrow(snp_subs_temp)-1)]) 
-  #             snp_subs_temp$dist <- as.numeric(snp_subs_temp$start) - as.numeric(snp_subs_temp$start_prev)
-  #             snp_size_init <- 2 + as.numeric(nrow(snp_subs[which(snp_subs$dist < snp_range/10),])/2) + 0.8*length(unique(gene_subs$transcript))
-  #         } else {snp_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)}
-  #     } else {snp_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)}
-  # 
-  #     #track sizes - defaults throw off scaling as more tracks are added
-  #      chrom_size <- 1.2 + 0.01*length(unique(gene_subs$transcript)) + 0.01*nrow(snp_subs) 
-  #      axis_size <- 1 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
-  #      gene_size <- 2 + 0.6*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
-  #      tfbs_size <- 2 + 0.075*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
-  #      snp_size <- snp_size_init #from above
-  #      
-  #     #output depends on whether there are TFBS and/or SNPs for a given gene    
-  #     if ((nrow(tfbs_subs) > 0) & (nrow(snp_subs) > 0)) {
-  #         plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size, snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
-  #     } else if (nrow(tfbs_subs) > 0) {
-  #         plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size), col=NULL,  background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
-  #     } else if (nrow(snp_subs) > 0) {
-  #         plotTracks(list(chrom_track, axis_track, gene_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
-  #     } else {
-  #         plotTracks(list(chrom_track, axis_track, gene_track), sizes=c(chrom_size,axis_size,gene_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
-  #     } 
-  # }
-  #    #plot height increases if more tracks are displayed
-  #    observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, height=400 + 15*length(unique(gene_subs()$transcript)) + 10*(nrow(snp_subs())), width=1055)})
-  #   
+  #filter data for selected gene
+  gene_subs <- reactive({
+      gene_subs_temp <- unique(filter(gene_locations, symbol==curr_gene()))
+      gene_subs_temp <- gene_subs_temp[!(duplicated(gene_subs_temp$exon)),]})
+  tfbs_subs <- reactive({unique(filter(tfbs, symbol==curr_gene()))})
+  snp_subs <- reactive({unique(filter(snp, symbol==curr_gene()))})
+
+    gene_tracks <- function() {
+      validate(need(curr_gene() != "", "Please enter a gene symbol or SNP ID.")) #Generate a error message when no gene id is input.
+      validate(need(GeneSymbol() != FALSE, "Please enter a valid gene symbol or SNP ID.")) # Generate error message if the gene symbol is not right.
+      validate(need(nrow(UserDataset_Info()) != 0, "Please choose at least one dataset.")) #Generate a error message when no data is loaded.
+
+      gene_subs <- gene_subs()
+      tfbs_subs <- tfbs_subs()
+      snp_subs <- snp_subs()
+
+      #constant for all tracks
+      gen <- "hg19"
+      chr <- unique(gene_subs$chromosome)
+
+      #chromosome, axis and gene - these tracks show up for all genes
+      cat(file=stderr(), as.character(Sys.time()), " start chrom_track\n")
+      bands <- chrom_bands[which(chrom_bands$chrom==chr),]
+      chrom_track <- IdeogramTrack(genome = gen, bands = bands)
+      cat(file=stderr(), as.character(Sys.time()), " end chrom_track\n")
+      cat(file=stderr(), "start axis_track\n")
+      axis_track <- GenomeAxisTrack()
+      cat(file=stderr(), "end axis_track\n")
+      cat(file=stderr(), "start gene_track\n")
+      gene_track <- Gviz::GeneRegionTrack(gene_subs, genome = gen, chromosome = chr, name = "Transcripts", transcriptAnnotation="transcript", fill = "royalblue")
+      cat(file=stderr(), "end gene_track\n")
+      
+      #tfbs and snp track - only present for some genes
+      if (nrow(tfbs_subs) > 0) {tfbs_track <- Gviz::AnnotationTrack(tfbs_subs, name="GR binding", fill = tfbs_subs$color, group = " ")}
+      if (nrow(snp_subs) > 0) {
+          snp_track <- Gviz::AnnotationTrack(snp_subs, name="SNPs", fill = snp_subs$color, group=snp_subs$pval_annot)
+
+          #rough estimate of number of stacks there will be in SNP track - for track scaling
+          if (nrow(snp_subs) > 1) {
+              snp_subs_temp <- snp_subs
+              snp_range <- max(snp_subs_temp$start) - min(snp_subs_temp$start)
+              snp_subs_temp$start_prev <- c(0, snp_subs_temp$start[1:(nrow(snp_subs_temp)-1)])
+              snp_subs_temp$dist <- as.numeric(snp_subs_temp$start) - as.numeric(snp_subs_temp$start_prev)
+              snp_size_init <- 2 + as.numeric(nrow(snp_subs[which(snp_subs$dist < snp_range/10),])/2) + 0.8*length(unique(gene_subs$transcript))
+          } else {snp_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)}
+      } else {snp_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)}
+
+      #track sizes - defaults throw off scaling as more tracks are added
+       chrom_size <- 1.2 + 0.01*length(unique(gene_subs$transcript)) + 0.01*nrow(snp_subs)
+       axis_size <- 1 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
+       gene_size <- 2 + 0.6*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
+       tfbs_size <- 2 + 0.075*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
+       snp_size <- snp_size_init #from above
+
+      #output depends on whether there are TFBS and/or SNPs for a given gene
+      if ((nrow(tfbs_subs) > 0) & (nrow(snp_subs) > 0)) {
+          plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size, snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
+      } else if (nrow(tfbs_subs) > 0) {
+          plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size), col=NULL,  background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
+      } else if (nrow(snp_subs) > 0) {
+          plotTracks(list(chrom_track, axis_track, gene_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
+      } else {
+          plotTracks(list(chrom_track, axis_track, gene_track), sizes=c(chrom_size,axis_size,gene_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
+      }
+  }
+     #plot height increases if more tracks are displayed
+     observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, height=400 + 15*length(unique(gene_subs()$transcript)) + 10*(nrow(snp_subs())), width=1055)})
+
   ######################
   ## Download buttons ##
   ######################
