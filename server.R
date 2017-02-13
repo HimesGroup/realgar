@@ -1,41 +1,43 @@
 # detach("package:Gviz", unload=TRUE) # this is to keep RStudio happy - run if loading app more than once in same session - keep commented out otherwise
                                     # if load Gviz 2x in same session (i.e. close & re-run app), get "object of type 'closure' is not subsettable" error
                                     # should not be an issue when running app from the website
-                                           
+# cat(file=stderr(), as.character(Sys.time()),"packages start\n")
+                                    # use this type command to easily see dataset loading time in RStudio  
+                                    # currently 3 seconds from "start package load" to "finish gene_locations load"
 library(shiny)
 library(dplyr)
 library(data.table)
-library(forestplot) #needed
+library(forestplot) 
 library(lattice)
 library(stringr)
 library(RColorBrewer)
-library(viridis) #needed
-library(DT) #needed
-library(Gviz) #needed
+library(viridis) 
+library(DT) 
+library(Gviz) 
 
 # load dataset descriptions
-Dataset_Info <- read.csv("databases/microarray_data_infosheet_R.csv")
-Dataset_Info$Unique_ID <- apply(Dataset_Info[, c("GEO_ID", "Tissue", "Asthma")], 1, paste, collapse="_")
+Dataset_Info <- readRDS("databases/microarray_data_infosheet_R.RDS")
+Dataset_Info$Unique_ID <- apply(Dataset_Info[, c("GEO_ID", "Tissue", "Asthma")], 1, paste, collapse = "_")
 
 #load and name datasets
-for (i in Dataset_Info$Unique_ID) {
-    assign(i, fread(paste0("databases/microarray_results/", i,".csv"), sep=","))}
-Dataset_Info[is.na(Dataset_Info$PMID),"PMID"] <- ""
+for (i in Dataset_Info$Unique_ID) {assign(i, readRDS(paste0("databases/microarray_results/", i, ".RDS")))}
+Dataset_Info[is.na(Dataset_Info$PMID), "PMID"] <- ""
 
-tfbs <- fread("databases/tfbs_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #TFBS data from ENCODE - matched to gene ids using bedtools
-snp <- fread("databases/grasp_output_for_app.txt", header = TRUE, stringsAsFactors = FALSE) #SNP data from GRASP - matched to gene ids using bedtools
+tfbs <-readRDS("databases/tfbs_for_app.RDS") #TFBS data from ENCODE - matched to gene ids using bedtools
+snp <- readRDS("databases/grasp_output_for_app.RDS") #SNP data from GRASP - matched to gene ids using bedtools
+snp_eve <- readRDS("databases/eve_data_realgar.RDS")#SNP data from EVE - matched to gene ids using bedtools #still have to do liftover
 gene_locations <- fread("databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location & transcript data from GENCODE
-
-chrom_bands <- fread("databases/chrom_bands.csv", header=TRUE, stringsAsFactors = FALSE) #chromosome band info for ideogram - makes ideogram load 25 seconds faster
+chrom_bands <- readRDS("databases/chrom_bands.RDS") #chromosome band info for ideogram - makes ideogram load 25 seconds faster
+#unlike all other files, gene_locations is faster with fread than with readRDS (2s load, vs 4s)
 
 #color tfbs based on binding score - used in tracks
 #create color scheme based on values tfbs binding score & snp p-values
 getPalette = colorRampPalette(brewer.pal(9, "Blues"))
 tfbs$color <- getPalette(50)[as.numeric(cut(tfbs$score,breaks = 50))]
 snp$color <- getPalette(1024)[as.numeric(cut(-snp$p,breaks = 1024))]
+snp_eve$color <- getPalette(1024)[as.numeric(cut(-snp_eve$meta_P,breaks = 1024))]
 
-#for SNP annotations
-snp$pval_annot <- snp$snp
+snp_eve$start <- snp_eve$end
 
 # make a list of gene symbols in all datasets for checking whether gene symbol entered is valid - used for GeneSymbol later on
 genes_avail <- vector()
@@ -322,7 +324,8 @@ shinyServer(function(input, output, session) {
       gene_subs_temp <- gene_subs_temp[!(duplicated(gene_subs_temp$exon)),]})
   tfbs_subs <- reactive({unique(filter(tfbs, symbol==curr_gene()))})
   snp_subs <- reactive({unique(filter(snp, symbol==curr_gene()))})
-
+  snp_eve_subs <- reactive({unique(filter(snp_eve, symbol==curr_gene()))})
+  
     gene_tracks <- function() {
       validate(need(curr_gene() != "", "Please enter a gene symbol or SNP ID.")) #Generate a error message when no gene id is input.
       validate(need(GeneSymbol() != FALSE, "Please enter a valid gene symbol or SNP ID.")) # Generate error message if the gene symbol is not right.
@@ -331,6 +334,7 @@ shinyServer(function(input, output, session) {
       gene_subs <- gene_subs()
       tfbs_subs <- tfbs_subs()
       snp_subs <- snp_subs()
+      snp_eve_subs <- snp_eve_subs()
 
       #constant for all tracks
       gen <- "hg19"
@@ -342,11 +346,15 @@ shinyServer(function(input, output, session) {
       axis_track <- GenomeAxisTrack()
       gene_track <- Gviz::GeneRegionTrack(gene_subs, genome = gen, chromosome = chr, name = "Transcripts", transcriptAnnotation="transcript", fill = "royalblue")
       
-      #tfbs and snp track - only present for some genes
+      #tfbs and snp tracks - only present for some genes
+      
+      #TFBS
       if (nrow(tfbs_subs) > 0) {tfbs_track <- Gviz::AnnotationTrack(tfbs_subs, name="GR binding", fill = tfbs_subs$color, group = " ")}
-      if (nrow(snp_subs) > 0) {
-          snp_track <- Gviz::AnnotationTrack(snp_subs, name="SNPs", fill = snp_subs$color, group=snp_subs$pval_annot)
-
+      
+      # GRASP SNPs track
+      if (nrow(snp_subs) > 0) { 
+          snp_track <- Gviz::AnnotationTrack(snp_subs, name="SNPs (from GRASP)", fill = snp_subs$color, group=snp_subs$snp)
+          
           #rough estimate of number of stacks there will be in SNP track - for track scaling
           if (nrow(snp_subs) > 1) {
               snp_subs_temp <- snp_subs
@@ -357,24 +365,51 @@ shinyServer(function(input, output, session) {
           } else {snp_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)}
       } else {snp_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)}
 
+      # EVE SNPs track
+      if (nrow(snp_eve_subs) > 0) {
+          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (from EVE)", fill = snp_eve_subs$color, group=snp_eve_subs$snp_id)
+
+          #rough estimate of number of stacks there will be in SNP track - for track scaling
+          if (nrow(snp_eve_subs) > 1) {
+              snp_eve_subs_temp <- snp_eve_subs
+              snp_eve_range <- max(snp_eve_subs_temp$start) - min(snp_eve_subs_temp$start)
+              snp_eve_subs_temp$start_prev <- c(0, snp_eve_subs_temp$start[1:(nrow(snp_eve_subs_temp)-1)])
+              snp_eve_subs_temp$dist <- as.numeric(snp_eve_subs_temp$start) - as.numeric(snp_eve_subs_temp$start_prev)
+              snp_eve_size_init <- 2 + as.numeric(nrow(snp_eve_subs[which(snp_eve_subs$dist < snp_eve_range/10),])/2) + 0.8*length(unique(gene_subs$transcript))
+          } else {snp_eve_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_eve_subs)}
+      } else {snp_eve_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_eve_subs)}
+
       #track sizes - defaults throw off scaling as more tracks are added
        chrom_size <- 1.2 + 0.01*length(unique(gene_subs$transcript)) + 0.01*nrow(snp_subs)
        axis_size <- 1 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
        gene_size <- 2 + 0.6*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
        tfbs_size <- 2 + 0.075*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
        snp_size <- snp_size_init #from above
+       snp_eve_size <- snp_eve_size_init #from above
 
-      #output depends on whether there are TFBS and/or SNPs for a given gene
-      if ((nrow(tfbs_subs) > 0) & (nrow(snp_subs) > 0)) {
-          plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size, snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
-      } else if (nrow(tfbs_subs) > 0) {
-          plotTracks(list(chrom_track, axis_track, gene_track, tfbs_track), sizes=c(chrom_size,axis_size,gene_size,tfbs_size), col=NULL,  background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
-      } else if (nrow(snp_subs) > 0) {
-          plotTracks(list(chrom_track, axis_track, gene_track, snp_track), sizes=c(chrom_size,axis_size,gene_size,snp_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
-      } else {
-          plotTracks(list(chrom_track, axis_track, gene_track), sizes=c(chrom_size,axis_size,gene_size), col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
-      }
-  }
+      #select the non-empty tracks to output -- output depends on whether there are TFBS and/or SNPs for a given gene
+       subset_size <- sapply(c("tfbs_subs", "snp_subs", "snp_eve_subs"), function(x) {nrow(get(x))}) #size of each subset
+       non_zeros <- names(subset_size)[which(!(subset_size==0))] #which subsets have non-zero size
+       
+       df_extract <- function(x,y) { #gives name of track and track size variable for non-zero subsets (y is "track" or "size")
+           if (length(non_zeros) > 0) {
+               get(paste0(strsplit(x, 'subs'),y)) #trim off "subs" and append either "track" or "size"
+           } else {NULL} #to avoid meltdown if no subsets were non-zero
+       }
+       
+       #use df_extract function to get track & track size corresponding to all non-zero subsets
+       #note chrom_track, axis_track and gene_track are present for all
+       selected_tracks <- list(chrom_track, axis_track, gene_track, sapply(non_zeros, df_extract, y="track")$tfbs_subs, sapply(non_zeros, df_extract, y="track")$snp_subs, sapply(non_zeros, df_extract, y="track")$snp_eve_subs)
+       selected_tracks <- Filter(Negate(function(x) is.null(unlist(x))), selected_tracks) #remove null elements from list
+       
+       selected_sizes <- na.omit(c(chrom_size,axis_size,gene_size, sapply(non_zeros, df_extract, y="size")[1], sapply(non_zeros, df_extract, y="size")[2], sapply(non_zeros, df_extract, y="size")[3]))
+       #note: use names to extract from selected_tracks b/c it is a list vs. index to extract from selected_sizes, since this is numeric
+       
+       #plot tracks 
+       plotTracks(selected_tracks, sizes=selected_sizes, col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
+       
+    }
+    
      #plot height increases if more tracks are displayed
      observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, height=400 + 15*length(unique(gene_subs()$transcript)) + 10*(nrow(snp_subs())), width=1055)})
 
