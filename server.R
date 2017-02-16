@@ -62,17 +62,20 @@ shinyServer(function(input, output, session) {
   ##############################################
   ## "Select all" button for tissue selection ##
   ##############################################
-  checkbox_choices <- c("Bronchial epithelium"="BE","Lens epithelial cell" = "LEC",
-                        "Nasal epithelium"="NE","CD4"="CD4","CD8"="CD8","PBMC"="PBMC","White blood cell"="WBC", "Airway smooth muscle"="ASM",
-                        "BAL"="BAL", "Whole lung"="Lung","Lymphoblastic leukemia cell" = "chALL","MCF10A-Myc" = "MCF10A-Myc",
-                        "Macrophage" = "MACRO","Osteosarcoma U2OS cell" = "U2O", "Lymphoblastoid cell" = "LCL")
+  checkbox_choices <- c("Airway smooth muscle"="ASM", "Bronchial epithelium"="BE", 
+                        "Bronchoalveolar lavage"="BAL", "CD4"="CD4", "CD8"="CD8",
+                        "Lens epithelium" = "LEC","Lymphoblastic leukemia cell" = "chALL", 
+                        "Lymphoblastoid cell" = "LCL","Macrophage" = "MACRO", "MCF10A-Myc" = "MCF10A-Myc",
+                        "Nasal epithelium"="NE","Osteosarcoma U2OS cell" = "U2O", 
+                        "Peripheral blood mononuclear cell"="PBMC","White blood cell"="WBC","Whole lung"="Lung")
+
   observe({
       if(input$selectall == 0) return(NULL) 
       else if (input$selectall%%2 == 0)
-      {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=checkbox_choices)}
+      {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=checkbox_choices, inline = TRUE)}
       else
       {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=checkbox_choices,selected=c("BE", "LEC", "NE", "CD4", "CD8", "PBMC", "WBC", "ASM", "BAL", "Lung",
-                                                                                                 "chALL", "MCF10A-Myc", "MACRO", "U2O", "LCL"))}})
+                                                                                                 "chALL", "MCF10A-Myc", "MACRO", "U2O", "LCL"), inline = TRUE)}})
   #######################
   ## GEO studies table ##
   #######################
@@ -268,52 +271,27 @@ shinyServer(function(input, output, session) {
   output$forestplot_asthma = renderPlot({forestplot_asthma()}, height=650)
   output$forestplot_GC = renderPlot({forestplot_GC()}, height=650)
   
-  #######################
-  ## p-value levelplot ##
-  #######################
+  output$color_scale1 <- output$color_scale2 <- renderImage({ #need two separate output names - else it fails (can't output same thing twice?)
+      return(list(
+              src = "databases/www/color_scale.png",
+              height=550,
+              width=59,
+              filetype = "image/png",
+              alt = "color_scale"
+          ))
 
-  # #to separate asthma & GC in p-value plot, initially have each set of data separately, then combine to plot
-  # 
-  # #asthma data
-  # data3_Asthma <- reactive({
-  #     temp_asthma <- data_Asthma()
-  #     temp_asthma$neglogofP[which(temp_asthma$neglogofP > 8)] <- 8
-  #     temp_asthma <- as.data.frame(temp_asthma)
-  #     temp_asthma[rev(rownames(temp_asthma)),] #do this last - any operation makes it revert to default order: sorted by increasing fold change; we want decreasing
-  #     }) 
-  # 
-  # output.tableforplot2_asthma <- reactive({data3_Asthma() %>% dplyr::rename(' '=Fold_Change, ' '=neglogofP)})
-  # heatmapMAT_asthma <- reactive({output.tableforplot2_asthma()})
-  # pval_data_asthma <- reactive({t(heatmapMAT_asthma()[10])}) 
-  # 
-  # #GC data
-  # data3_GC <- reactive({
-  #     temp_GC <- data_GC()
-  #     temp_GC$neglogofP[which(temp_GC$neglogofP > 8)] <- 8
-  #     temp_GC <- as.data.frame(temp_GC)
-  #     temp_GC[rev(rownames(temp_GC)),] #do this last - any operation makes it revert to default order: sorted by increasing fold change; we want decreasing
-  #     }) 
-  # 
-  # output.tableforplot2_GC <- reactive({data3_GC() %>% dplyr::rename(' '=Fold_Change, ' '=neglogofP)})
-  # heatmapMAT_GC <- reactive({output.tableforplot2_GC()})
-  # pval_data_GC <- reactive({t(heatmapMAT_GC()[10])}) 
-  # 
-  # # levelplot for log p-value - combines asthma and GC data
-  # pval_plot <- function() {
-  #     levelplot(cbind(pval_data_GC(), pval_data_asthma()),
-  #               col.regions=heatmap_colors,
-  #               xlab = NULL,
-  #               ylab = NULL,
-  #               main = "-log10(adjusted p-value)",
-  #               pretty = FALSE,
-  #               aspect = 14,
-  #               label.style = "align",
-  #               scales=list(x=list(cex=0.75, tck = c(0,0,0,0)),
-  #                           y=list(cex=1, tck = c(1,0,0,0))),
-  #               at=seq(0,8,length.out=100))}
-  # 
-  # output$pval_plot_outp <- renderPlot({pval_plot()})
+  }, deleteFile = FALSE)
   
+  # output$color_scale2 <- renderImage({ #need two separate output names - else it fails (can't output same thing twice?). also different size b/c different number of asthma & GC datasets
+  #     return(list(
+  #         src = "databases/www/color_scale.png",
+  #         height=430,
+  #         width=46,
+  #         filetype = "image/png",
+  #         alt = "color_scale"
+  #     ))
+  #     
+  # }, deleteFile = FALSE)
   ###############################
   ## Gene, SNP and TFBS tracks ##
   ###############################
