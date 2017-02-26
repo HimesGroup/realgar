@@ -2,7 +2,7 @@
                                     # if load Gviz 2x in same session (i.e. close & re-run app), get "object of type 'closure' is not subsettable" error
                                     # should not be an issue when running app from the website
 # cat(file=stderr(), as.character(Sys.time()),"packages start\n")
-                                    # use this type command to easily see dataset loading time in RStudio  
+                                    # use this type of command to easily see dataset loading time in RStudio  
                                     # currently 3 seconds from "start package load" to "finish gene_locations load"
 library(shiny)
 library(dplyr)
