@@ -25,7 +25,8 @@ Dataset_Info[is.na(Dataset_Info$PMID), "PMID"] <- ""
 
 tfbs <-readRDS("databases/tfbs_for_app.RDS") #TFBS data from ENCODE - matched to gene ids using bedtools
 snp <- readRDS("databases/grasp_output_for_app.RDS") #SNP data from GRASP - matched to gene ids using bedtools
-snp_eve <- readRDS("databases/eve_data_realgar.RDS")#SNP data from EVE - matched to gene ids using bedtools #still have to do liftover
+snp_eve <- readRDS("databases/eve_data_realgar.RDS")#SNP data from EVE - lifted over from hg18 to hg19 - matched to gene ids using bedtools 
+snp_gabriel <- readRDS("databases/gabriel_data_realgar.RDS") #still have to add #SNP data from GABRIEL - lifted over from hg17 to hg19 - matched to gene ids using bedtools 
 gene_locations <- fread("databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location & transcript data from GENCODE
 chrom_bands <- readRDS("databases/chrom_bands.RDS") #chromosome band info for ideogram - makes ideogram load 25 seconds faster
 #unlike all other files, gene_locations is faster with fread than with readRDS (2s load, vs 4s)
@@ -36,8 +37,7 @@ getPalette = colorRampPalette(brewer.pal(9, "Blues"))
 tfbs$color <- getPalette(50)[as.numeric(cut(tfbs$score,breaks = 50))]
 snp$color <- getPalette(1024)[as.numeric(cut(-snp$p,breaks = 1024))]
 snp_eve$color <- getPalette(1024)[as.numeric(cut(-snp_eve$meta_P,breaks = 1024))]
-
-snp_eve$start <- snp_eve$end
+snp_gabriel$color <- getPalette(1024)[as.numeric(cut(-snp_gabriel$P_fix,breaks = 1024))]
 
 # make a list of gene symbols in all datasets for checking whether gene symbol entered is valid - used for GeneSymbol later on
 genes_avail <- vector()
@@ -226,13 +226,22 @@ shinyServer(function(input, output, session) {
       tabletext <- matrix(nrow=1, ncol=4)
       tabletext[1,] <- c("GEO ID", "Tissue", "Endotype", "Q Value")
       text_temp <- cbind(as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_Asthma$`Study ID`),c(1,11,4)]), data2_Asthma$`Q Value`)
+      text_temp[,2] <- gsub(" cells", "", text_temp[,2])
+      text_temp[,3] <- gsub("_", " ", text_temp[,3])
       tabletext <- rbind(tabletext,text_temp)
-
+      
+      #hrzl_lines are borders between rows... made wide enough to be a background
+      hrzl_lines <- vector("list", nrow(tabletext)+1)
+      hrzl_lines[[1]] <- gpar(lwd=1000/nrow(data2_Asthma), lineend="butt", columns=5, col="#ffffff")
+      hrzl_lines[[2]] <- gpar(lwd=250/nrow(data2_Asthma), lineend="butt", columns=5, col="#d3cecc")
+      for (i in 3:(length(hrzl_lines)-1)) {hrzl_lines[[i]]  <- gpar(lwd=750/nrow(data2_Asthma), lineend="butt", columns=5, col="#d3cecc")}
+      hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=250/nrow(data2_Asthma), lineend="butt", columns=5, col="#ffffff")
       
       forestplot(tabletext, title = "Asthma vs. Non-asthma", rbind(c(NA,NA,NA,NA),data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]), zero = 1, 
-                 xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2, 
+                 xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2, 
                  xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_Asthma))), lineheight = unit((19/nrow(data2_Asthma)), "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
-                 txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)))
+                 txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)),
+                 hrzl_lines=hrzl_lines)
   }
   
   #GC forestplot
@@ -260,13 +269,22 @@ shinyServer(function(input, output, session) {
       tabletext <- matrix(nrow=1, ncol=4)
       tabletext[1,] <- c("GEO ID", "Tissue", "Treatment", "Q Value")
       text_temp <- cbind(as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_GC$`Study ID`),c(1,11,6)]), data2_GC$`Q Value`)
+      text_temp[,2] <- gsub(" cells", "", text_temp[,2])
+      text_temp[,3] <- gsub("_", " ", text_temp[,3])
       tabletext <- rbind(tabletext,text_temp)
+
+      #hrzl_lines are borders between rows... made wide enough to be a background
+      hrzl_lines <- vector("list", nrow(tabletext)+1)
+      hrzl_lines[[1]] <- gpar(lwd=800/nrow(data2_GC), lineend="butt", columns=5, col="#ffffff")
+      hrzl_lines[[2]] <- gpar(lwd=200/nrow(data2_GC), lineend="butt", columns=5, col="#d3cecc")
+      for (i in 3:(length(hrzl_lines)-1)) {hrzl_lines[[i]]  <- gpar(lwd=600/nrow(data2_GC), lineend="butt", columns=5, col="#d3cecc")}
+      hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=200/nrow(data2_GC), lineend="butt", columns=5, col="#ffffff")
       
-      par(bg = "thistle")
       forestplot(tabletext, title = "Glucocorticoid vs. Control", rbind(c(NA,NA,NA,NA),data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]) ,zero = 1, 
-                 xlab = "Fold Change",boxsize = 0.15, col = fpColors(lines = "navyblue", box = "royalblue", zero = "lightgrey"), lwd.ci = 2,
+                 xlab = "Fold Change",boxsize = 0.15, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2,
                  xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_GC))), lineheight = unit((15/(nrow(data2_GC))), "cm"),mar = unit(c(5,0,0,10),"mm"), fn.ci_norm = color_fn,
-                 txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)))}
+                 txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)),
+                 hrzl_lines=hrzl_lines)}
   
   output$forestplot_asthma = renderPlot({forestplot_asthma()}, height=650)
   output$forestplot_GC = renderPlot({forestplot_GC()}, height=650)
@@ -282,16 +300,7 @@ shinyServer(function(input, output, session) {
 
   }, deleteFile = FALSE)
   
-  # output$color_scale2 <- renderImage({ #need two separate output names - else it fails (can't output same thing twice?). also different size b/c different number of asthma & GC datasets
-  #     return(list(
-  #         src = "databases/www/color_scale.png",
-  #         height=430,
-  #         width=46,
-  #         filetype = "image/png",
-  #         alt = "color_scale"
-  #     ))
-  #     
-  # }, deleteFile = FALSE)
+  
   ###############################
   ## Gene, SNP and TFBS tracks ##
   ###############################
@@ -301,8 +310,15 @@ shinyServer(function(input, output, session) {
       gene_subs_temp <- unique(filter(gene_locations, symbol==curr_gene()))
       gene_subs_temp <- gene_subs_temp[!(duplicated(gene_subs_temp$exon)),]})
   tfbs_subs <- reactive({unique(filter(tfbs, symbol==curr_gene()))})
-  snp_subs <- reactive({unique(filter(snp, symbol==curr_gene()))})
-  snp_eve_subs <- reactive({unique(filter(snp_eve, symbol==curr_gene()))})
+  snp_subs <- reactive({
+      if(("snp_subs" %in% input$which_SNPs)) {unique(filter(snp, symbol==curr_gene()))} 
+      else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
+  snp_eve_subs <- reactive({
+      if(("snp_eve_subs" %in% input$which_SNPs)) {unique(filter(snp_eve, symbol==curr_gene()))}
+      else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
+  snp_gabriel_subs <- reactive({
+      if(("snp_gabriel_subs" %in% input$which_SNPs)) {unique(filter(snp_gabriel, symbol==curr_gene()))}
+      else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
   
     gene_tracks <- function() {
       validate(need(curr_gene() != "", "Please enter a gene symbol or SNP ID.")) #Generate a error message when no gene id is input.
@@ -313,7 +329,8 @@ shinyServer(function(input, output, session) {
       tfbs_subs <- tfbs_subs()
       snp_subs <- snp_subs()
       snp_eve_subs <- snp_eve_subs()
-
+      snp_gabriel_subs <- snp_gabriel_subs()
+      
       #constant for all tracks
       gen <- "hg19"
       chr <- unique(gene_subs$chromosome)
@@ -334,6 +351,7 @@ shinyServer(function(input, output, session) {
           snp_track <- Gviz::AnnotationTrack(snp_subs, name="SNPs (from GRASP)", fill = snp_subs$color, group=snp_subs$snp)
           
           #rough estimate of number of stacks there will be in SNP track - for track scaling
+          #note this stuff needs the SNPs to be ordered by position (smallest to largest)
           if (nrow(snp_subs) > 1) {
               snp_subs_temp <- snp_subs
               snp_range <- max(snp_subs_temp$start) - min(snp_subs_temp$start)
@@ -345,7 +363,7 @@ shinyServer(function(input, output, session) {
 
       # EVE SNPs track
       if (nrow(snp_eve_subs) > 0) {
-          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (from EVE)", fill = snp_eve_subs$color, group=snp_eve_subs$snp_id)
+          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (from EVE)", fill = snp_eve_subs$color, group=snp_eve_subs$snp)
 
           #rough estimate of number of stacks there will be in SNP track - for track scaling
           if (nrow(snp_eve_subs) > 1) {
@@ -356,7 +374,22 @@ shinyServer(function(input, output, session) {
               snp_eve_size_init <- 2 + as.numeric(nrow(snp_eve_subs[which(snp_eve_subs$dist < snp_eve_range/10),])/2) + 0.8*length(unique(gene_subs$transcript))
           } else {snp_eve_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_eve_subs)}
       } else {snp_eve_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_eve_subs)}
-
+      
+      # GABRIEL SNPs track
+      if (nrow(snp_gabriel_subs) > 0) {
+          snp_gabriel_track <- Gviz::AnnotationTrack(snp_gabriel_subs, name="SNPs (from GABRIEL)", fill = snp_gabriel_subs$color, group=snp_gabriel_subs$snp)
+          
+          #rough estimate of number of stacks there will be in SNP track - for track scaling
+          if (nrow(snp_gabriel_subs) > 1) {
+              snp_gabriel_subs_temp <- snp_gabriel_subs
+              snp_gabriel_range <- max(snp_gabriel_subs_temp$start) - min(snp_gabriel_subs_temp$start)
+              snp_gabriel_subs_temp$start_prev <- c(0, snp_gabriel_subs_temp$start[1:(nrow(snp_gabriel_subs_temp)-1)])
+              snp_gabriel_subs_temp$dist <- as.numeric(snp_gabriel_subs_temp$start) - as.numeric(snp_gabriel_subs_temp$start_prev)
+              snp_gabriel_size_init <- 2 + as.numeric(nrow(snp_gabriel_subs[which(snp_gabriel_subs$dist < snp_gabriel_range/10),])/2) + 0.8*length(unique(gene_subs$transcript))
+          } else {snp_gabriel_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_gabriel_subs)}
+      } else {snp_gabriel_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_gabriel_subs)}
+      
+      
       #track sizes - defaults throw off scaling as more tracks are added
        chrom_size <- 1.2 + 0.01*length(unique(gene_subs$transcript)) + 0.01*nrow(snp_subs)
        axis_size <- 1 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
@@ -364,9 +397,10 @@ shinyServer(function(input, output, session) {
        tfbs_size <- 2 + 0.075*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
        snp_size <- snp_size_init #from above
        snp_eve_size <- snp_eve_size_init #from above
+       snp_gabriel_size <- snp_gabriel_size_init #from above
 
       #select the non-empty tracks to output -- output depends on whether there are TFBS and/or SNPs for a given gene
-       subset_size <- sapply(c("tfbs_subs", "snp_subs", "snp_eve_subs"), function(x) {nrow(get(x))}) #size of each subset
+       subset_size <- sapply(c("tfbs_subs", "snp_subs", "snp_eve_subs", "snp_gabriel_subs"), function(x) {nrow(get(x))}) #size of each subset
        non_zeros <- names(subset_size)[which(!(subset_size==0))] #which subsets have non-zero size
        
        df_extract <- function(x,y) { #gives name of track and track size variable for non-zero subsets (y is "track" or "size")
@@ -377,10 +411,11 @@ shinyServer(function(input, output, session) {
        
        #use df_extract function to get track & track size corresponding to all non-zero subsets
        #note chrom_track, axis_track and gene_track are present for all
-       selected_tracks <- list(chrom_track, axis_track, gene_track, sapply(non_zeros, df_extract, y="track")$tfbs_subs, sapply(non_zeros, df_extract, y="track")$snp_subs, sapply(non_zeros, df_extract, y="track")$snp_eve_subs)
+       selected_tracks <- list(chrom_track, axis_track, gene_track, sapply(non_zeros, df_extract, y="track")$tfbs_subs, sapply(non_zeros, df_extract, y="track")$snp_subs, sapply(non_zeros, df_extract, y="track")$snp_eve_subs, sapply(non_zeros, df_extract, y="track")$snp_gabriel_subs)
        selected_tracks <- Filter(Negate(function(x) is.null(unlist(x))), selected_tracks) #remove null elements from list
        
-       selected_sizes <- na.omit(c(chrom_size,axis_size,gene_size, sapply(non_zeros, df_extract, y="size")[1], sapply(non_zeros, df_extract, y="size")[2], sapply(non_zeros, df_extract, y="size")[3]))
+       selected_sizes <- na.omit(c(chrom_size,axis_size,gene_size, sapply(non_zeros, df_extract, y="size")[1], sapply(non_zeros, df_extract, y="size")[2], sapply(non_zeros, df_extract, y="size")[3], sapply(non_zeros, df_extract, y="size")[4]))
+       selected_sizes <- Filter(Negate(function(x) is.null(unlist(x))), selected_sizes) #remove null elements from list - else run into trouble in conditions when no TFBS & no SNP tracks selected
        #note: use names to extract from selected_tracks b/c it is a list vs. index to extract from selected_sizes, since this is numeric
        
        #plot tracks 
@@ -389,7 +424,7 @@ shinyServer(function(input, output, session) {
     }
     
      #plot height increases if more tracks are displayed
-     observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, height=400 + 15*length(unique(gene_subs()$transcript)) + 10*(nrow(snp_subs())), width=1055)})
+     observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, height=400 + 15*length(unique(gene_subs()$transcript)) + 10*(nrow(snp_subs())+nrow(snp_eve_subs())+nrow(snp_gabriel_subs())), width=1055)})
 
   ######################
   ## Download buttons ##
