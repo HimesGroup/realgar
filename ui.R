@@ -1,7 +1,7 @@
 library(shinythemes)
 
 # Define UI for application that displays GEO results based on user choices
-ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"), 
+ui <- shinyUI(fluidPage(theme = shinytheme("lumen"), 
                         #h1(strong("REALGAR"), align="center", style = "color: #9E443A;"),
                         h3(strong("Reducing Associations by Linking Genes And transcriptomic Results"), align="center", style = "color: #9E443A;"), hr(),
                         p("REALGAR is an integrated resource of tissue-specific results from expression studies. ",
@@ -21,7 +21,9 @@ ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"),
                           "We hope REALGAR's disease-specific and tissue specific information ",
                           "will facilitate prioritization and experiment design, leading to clinically actionable insights."), br(),
                         
-                        wellPanel(fluidRow(align = "left",
+                        navbarPage( "", 
+                                   tabPanel("Results", 
+                            wellPanel(fluidRow(align = "left",
                                            column(12,  
                                                   
                                                   fluidRow(h4(strong("Select options:")),align = "left"), 
@@ -30,11 +32,12 @@ ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"),
                                                                                                                                              "Lens epithelium" = "LEC","Lymphoblastic leukemia cell" = "chALL", 
                                                                                                                                              "Lymphoblastoid cell" = "LCL","Macrophage" = "MACRO", "MCF10A-Myc" = "MCF10A-Myc",
                                                                                                                                              "Nasal epithelium"="NE","Osteosarcoma U2OS cell" = "U2O", 
-                                                                                                                                             "Peripheral blood mononuclear cell"="PBMC","White blood cell"="WBC","Whole lung"="Lung"),selected="BE", inline = TRUE), align="left"),
-                                                           fluidRow(actionButton("selectall","Select/unselect all tissues", style="color: #fff; background-color: #337ab7; border-color: #2e6da4"), align="left"))),
-                                                          column(2, fluidRow(checkboxGroupInput(inputId="Asthma", label="Asthma Type", choices=c("Allergic asthma"="allergic_asthma",
-                                                                                                                                          "Severe asthma"="severe_asthma","Asthma"="asthma","Mild asthma"="mild_asthma","Non-allergic asthma"=
-                                                                                                                                              "non_allergic_asthma", "Asthma and rhinitis"="asthma_and_rhinitis"), selected="asthma"), inline = TRUE), align="left"),
+                                                                                                                                             "Peripheral blood mononuclear cell"="PBMC","Small airway epithelium"="SAE",
+                                                                                                                                             "White blood cell"="WBC","Whole lung"="Lung"),selected="BE", inline = TRUE), align="left"),
+                                                           fluidRow(actionButton("selectall","Select/unselect all tissues"), align="left"))), #style="color: #fff; background-color: #337ab7; border-color: #2e6da4"
+                                                          column(2, fluidRow(checkboxGroupInput(inputId="Asthma", label="Asthma Type", choices=c("Allergic asthma"="allergic_asthma", "Asthma"="asthma", "Asthma and rhinitis"="asthma_and_rhinitis",
+                                                                                                                                                 "Fatal asthma"="fatal_asthma", "Mild asthma"="mild_asthma", "Non-allergic asthma"="non_allergic_asthma",
+                                                                                                                                                 "Non-asthma smoker"="non_asthma_smoker","Severe asthma"="severe_asthma"), selected="asthma"), inline = TRUE), align="left"),
                                                   column(2, fluidRow(radioButtons(inputId="GC_included", label="Treatment", 
                                                                                    choice = c("Glucocorticoid treatment" = "GC", "No treatment" = ""), select = "")),
                                                          fluidRow(checkboxGroupInput(inputId="which_SNPs", label="GWAS results to include", choices=c("EVE"="snp_eve_subs", "GABRIEL"="snp_gabriel_subs", "GRASP"="snp_subs"), selected=c("snp_eve_subs", "snp_gabriel_subs", "snp_subs"))), align="left"),
@@ -46,22 +49,15 @@ ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"),
                                            fluidRow(column(12, h5("The results displayed in the forest plots and gene tracks below may also be downloaded directly here:"))), br(),
                                            fluidRow(column(6, downloadButton(outputId="table_download", label="Download fold change and p-value results displayed in forest plots below"), align="left"),
                                                     column(6, downloadButton(outputId="SNP_data_download", label="Download GWAS results displayed in gene tracks below"), align="left")))),
-                                           #,
-                                           # column(7,align="left",
-                                           #        fluidRow(h4("Datasets loaded:")),
-                                           #        fluidRow(p("Click on links to access the datasets and studies referenced in the table.")),
-                                           #        fluidRow(DT::dataTableOutput(outputId="GEO_table")))
 
-                        
-                        
                         mainPanel(hr(),
                                   fluidRow(br(),
                                            column(10, plotOutput(outputId="forestplot_asthma",width="900px", height="650px"), align="left"), 
                                            div(style="margin-top: 45px", column(2, imageOutput("color_scale1"), align="right")), # margin-top needed to align color scale w/ forest plot
-                                           column(6, downloadButton(outputId="asthma_fc_download",label="Download asthma forest plot"), align="center"),
+                                           column(12, downloadButton(outputId="asthma_fc_download",label="Download asthma forest plot"), align="center"), br(),
                                            column(10, conditionalPanel(condition = "input.GC_included == 'GC'", plotOutput(outputId="forestplot_GC",width="900px", height="650px")),align="left"),
                                            column(2, div(style="margin-top: 45px", conditionalPanel(condition = "input.GC_included == 'GC'", imageOutput("color_scale2")), align="right")), # margin-top needed to align color scale w/ forest plot
-                                           column(6, conditionalPanel(condition = "input.GC_included == 'GC'", downloadButton(outputId="GC_fc_download",label="Download GC forest plot")), align="center")),
+                                           column(12, conditionalPanel(condition = "input.GC_included == 'GC'", downloadButton(outputId="GC_fc_download",label="Download GC forest plot")), align="center")),
                                            
                                   fluidRow(br()
                                       # column(12, h5(strong("Results Used to Create Plots Above")), align = "center")
@@ -82,4 +78,9 @@ ui <- shinyUI(fluidPage(theme = shinytheme("cosmo"),
                                                         "All SNP p-values are <=0.05 and are obtained directly",
                                                         "from the study in which the association was published.")),
                                            column(12, downloadButton(outputId="gene_tracks_download", label="Download gene tracks"), align="center"), br(),
-                                           column(12, align="center", plotOutput(outputId="gene_tracks_outp2"), br(), br())))))
+                                           column(12, align="center", plotOutput(outputId="gene_tracks_outp2"), br(), br())))),
+                        tabPanel("Datasets loaded",
+                                 column(12,align="left",
+                                        fluidRow(h4("Datasets loaded:")),
+                                        fluidRow(p("Click on links to access the datasets and studies referenced in the table.")),
+                                        fluidRow(DT::dataTableOutput(outputId="GEO_table")))))))
