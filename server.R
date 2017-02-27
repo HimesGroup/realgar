@@ -19,10 +19,16 @@ library(Gviz)
 Dataset_Info <- readRDS("databases/microarray_data_infosheet_R.RDS")
 Dataset_Info$Unique_ID <- apply(Dataset_Info[, c("GEO_ID", "Tissue", "Asthma")], 1, paste, collapse = "_")
 
-#load and name datasets
-for (i in Dataset_Info$Unique_ID) {assign(i, readRDS(paste0("databases/microarray_results/", i, ".RDS")))}
+#load and name GEO microarray datasets
+for (i in Dataset_Info$Unique_ID[grep("GSE",Dataset_Info$GEO_ID)]) {assign(i, readRDS(paste0("databases/microarray_results/", i, ".RDS")))} 
 Dataset_Info[is.na(Dataset_Info$PMID), "PMID"] <- ""
 
+#load RNA-Seq datasets
+SRP005411 <- fread("databases/SRP005411_full_sleuth.txt", sep = " ")
+SRP043162 <- fread("databases/SRP043162_full_sleuth.txt", sep = " ")
+SRP033351 <- fread("databases/SRP033351_full_sleuth.txt", sep = " ")
+
+#load info for gene tracks: gene locations, TFBS, SNPs, etc.
 tfbs <-readRDS("databases/tfbs_for_app.RDS") #TFBS data from ENCODE - matched to gene ids using bedtools
 snp <- readRDS("databases/grasp_output_for_app.RDS") #SNP data from GRASP - matched to gene ids using bedtools
 snp_eve <- readRDS("databases/eve_data_realgar.RDS")#SNP data from EVE - lifted over from hg18 to hg19 - matched to gene ids using bedtools 
@@ -67,7 +73,8 @@ shinyServer(function(input, output, session) {
                         "Lens epithelium" = "LEC","Lymphoblastic leukemia cell" = "chALL", 
                         "Lymphoblastoid cell" = "LCL","Macrophage" = "MACRO", "MCF10A-Myc" = "MCF10A-Myc",
                         "Nasal epithelium"="NE","Osteosarcoma U2OS cell" = "U2O", 
-                        "Peripheral blood mononuclear cell"="PBMC","White blood cell"="WBC","Whole lung"="Lung")
+                        "Peripheral blood mononuclear cell"="PBMC","Small airway epithelium"="SAE",
+                        "White blood cell"="WBC","Whole lung"="Lung")
 
   observe({
       if(input$selectall == 0) return(NULL) 
@@ -75,7 +82,7 @@ shinyServer(function(input, output, session) {
       {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=checkbox_choices, inline = TRUE)}
       else
       {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=checkbox_choices,selected=c("BE", "LEC", "NE", "CD4", "CD8", "PBMC", "WBC", "ASM", "BAL", "Lung",
-                                                                                                 "chALL", "MCF10A-Myc", "MACRO", "U2O", "LCL"), inline = TRUE)}})
+                                                                                                 "chALL", "MCF10A-Myc", "MACRO", "U2O", "LCL", "SAE"), inline = TRUE)}})
   #######################
   ## GEO studies table ##
   #######################
@@ -91,7 +98,7 @@ shinyServer(function(input, output, session) {
       validate(need(nrow(UserDataset_Info()) != 0, "Please choose at least one dataset.")) #Generate a error message when no data is loaded.
      
        UserDataset_Info() %>%
-          dplyr::mutate(GEO_ID_link = paste0("http://www.ncbi.nlm.nih.gov/gquery/?term=", GEO_ID),
+          dplyr::mutate(GEO_ID_link = paste0("http://www.ncbi.nlm.nih.gov/gquery/?term=", GEO_ID), ##NEED TO ADD THE GSE/SRP DISTINCTION
              PMID_link = paste0("http://www.ncbi.nlm.nih.gov/pubmed/?term=", PMID))})
     
   Dataset <- reactive({paste0("<a href='",  GEO_data()$GEO_ID_link, "' target='_blank'>",GEO_data()$GEO_ID,"</a>")})
@@ -235,7 +242,7 @@ shinyServer(function(input, output, session) {
       hrzl_lines[[1]] <- gpar(lwd=1000/nrow(data2_Asthma), lineend="butt", columns=5, col="#ffffff")
       hrzl_lines[[2]] <- gpar(lwd=250/nrow(data2_Asthma), lineend="butt", columns=5, col="#d3cecc")
       for (i in 3:(length(hrzl_lines)-1)) {hrzl_lines[[i]]  <- gpar(lwd=750/nrow(data2_Asthma), lineend="butt", columns=5, col="#d3cecc")}
-      hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=250/nrow(data2_Asthma), lineend="butt", columns=5, col="#ffffff")
+      hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=150/nrow(data2_Asthma), lineend="butt", columns=5, col="#ffffff")
       
       forestplot(tabletext, title = "Asthma vs. Non-asthma", rbind(c(NA,NA,NA,NA),data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]), zero = 1, 
                  xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2, 
@@ -278,7 +285,7 @@ shinyServer(function(input, output, session) {
       hrzl_lines[[1]] <- gpar(lwd=800/nrow(data2_GC), lineend="butt", columns=5, col="#ffffff")
       hrzl_lines[[2]] <- gpar(lwd=200/nrow(data2_GC), lineend="butt", columns=5, col="#d3cecc")
       for (i in 3:(length(hrzl_lines)-1)) {hrzl_lines[[i]]  <- gpar(lwd=600/nrow(data2_GC), lineend="butt", columns=5, col="#d3cecc")}
-      hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=200/nrow(data2_GC), lineend="butt", columns=5, col="#ffffff")
+      hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=100/nrow(data2_GC), lineend="butt", columns=5, col="#ffffff")
       
       forestplot(tabletext, title = "Glucocorticoid vs. Control", rbind(c(NA,NA,NA,NA),data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]) ,zero = 1, 
                  xlab = "Fold Change",boxsize = 0.15, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2,
