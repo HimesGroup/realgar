@@ -17,16 +17,13 @@ library(Gviz)
 
 # load dataset descriptions
 Dataset_Info <- readRDS("databases/microarray_data_infosheet_R.RDS")
-Dataset_Info$Unique_ID <- apply(Dataset_Info[, c("GEO_ID", "Tissue", "Asthma")], 1, paste, collapse = "_")
 
-#load and name GEO microarray datasets
-for (i in Dataset_Info$Unique_ID[grep("GSE",Dataset_Info$GEO_ID)]) {assign(i, readRDS(paste0("databases/microarray_results/", i, ".RDS")))} 
+#load and name GEO microarray and RNA-Seq datasets
+for (i in Dataset_Info$Unique_ID) {assign(i, readRDS(paste0("databases/microarray_results/", i, ".RDS")))} 
+#sleuth results come with a standard error, vs. for microarrays it is calculated - add SD column to microarray data sets
+
+Dataset_Info$PMID <- as.character(Dataset_Info$PMID) #else next line does not work
 Dataset_Info[is.na(Dataset_Info$PMID), "PMID"] <- ""
-
-#load RNA-Seq datasets
-SRP005411 <- fread("databases/SRP005411_full_sleuth.txt", sep = " ")
-SRP043162 <- fread("databases/SRP043162_full_sleuth.txt", sep = " ")
-SRP033351 <- fread("databases/SRP033351_full_sleuth.txt", sep = " ")
 
 #load info for gene tracks: gene locations, TFBS, SNPs, etc.
 tfbs <-readRDS("databases/tfbs_for_app.RDS") #TFBS data from ENCODE - matched to gene ids using bedtools
@@ -98,9 +95,13 @@ shinyServer(function(input, output, session) {
       validate(need(nrow(UserDataset_Info()) != 0, "Please choose at least one dataset.")) #Generate a error message when no data is loaded.
      
        UserDataset_Info() %>%
-          dplyr::mutate(GEO_ID_link = paste0("http://www.ncbi.nlm.nih.gov/gquery/?term=", GEO_ID), ##NEED TO ADD THE GSE/SRP DISTINCTION
+          dplyr::mutate(GEO_ID_link = ifelse(grepl("SRP", GEO_ID), #GEO link is conditional on whether GEO_ID is an "SRP" or "GSE"
+                                             paste0("http://www.ncbi.nlm.nih.gov/sra/?term=", GEO_ID), 
+                                             paste0("http://www.ncbi.nlm.nih.gov/gquery/?term=", GEO_ID)),
              PMID_link = paste0("http://www.ncbi.nlm.nih.gov/pubmed/?term=", PMID))})
-    
+  
+  
+  
   Dataset <- reactive({paste0("<a href='",  GEO_data()$GEO_ID_link, "' target='_blank'>",GEO_data()$GEO_ID,"</a>")})
   PMID <- reactive({paste0("<a href='",  GEO_data()$PMID_link, "' target='_blank'>",GEO_data()$PMID,"</a>")})
   Description <- reactive({GEO_data()$Description})
@@ -129,9 +130,9 @@ shinyServer(function(input, output, session) {
   data_filter <- function(x){
       x %>%
           dplyr::filter(SYMBOL==curr_gene()) %>%
-          dplyr::select(logFC, P.Value, adj.P.Val,t) %>% 
+          dplyr::select(logFC, P.Value, adj.P.Val, SD) %>% 
           dplyr::filter(P.Value==min(P.Value)) %>%
-          dplyr::mutate(lower = logFC - 2* (logFC/t), upper = logFC + 2*(logFC/t))}
+          dplyr::mutate(lower = logFC - 2*SD, upper = logFC + 2*SD)}
      
   #get data for given gene for each study selected
   for (i in UserDataset_Info()$Unique_ID){
@@ -282,14 +283,14 @@ shinyServer(function(input, output, session) {
 
       #hrzl_lines are borders between rows... made wide enough to be a background
       hrzl_lines <- vector("list", nrow(tabletext)+1)
-      hrzl_lines[[1]] <- gpar(lwd=800/nrow(data2_GC), lineend="butt", columns=5, col="#ffffff")
-      hrzl_lines[[2]] <- gpar(lwd=200/nrow(data2_GC), lineend="butt", columns=5, col="#d3cecc")
-      for (i in 3:(length(hrzl_lines)-1)) {hrzl_lines[[i]]  <- gpar(lwd=600/nrow(data2_GC), lineend="butt", columns=5, col="#d3cecc")}
-      hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=100/nrow(data2_GC), lineend="butt", columns=5, col="#ffffff")
+      hrzl_lines[[1]] <- gpar(lwd=1000/nrow(data2_GC), lineend="butt", columns=5, col="#ffffff")
+      hrzl_lines[[2]] <- gpar(lwd=250/nrow(data2_GC), lineend="butt", columns=5, col="#d3cecc")
+      for (i in 3:(length(hrzl_lines)-1)) {hrzl_lines[[i]]  <- gpar(lwd=750/nrow(data2_GC), lineend="butt", columns=5, col="#d3cecc")}
+      hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=150/nrow(data2_GC), lineend="butt", columns=5, col="#ffffff")
       
       forestplot(tabletext, title = "Glucocorticoid vs. Control", rbind(c(NA,NA,NA,NA),data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]) ,zero = 1, 
-                 xlab = "Fold Change",boxsize = 0.15, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2,
-                 xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_GC))), lineheight = unit((15/(nrow(data2_GC))), "cm"),mar = unit(c(5,0,0,10),"mm"), fn.ci_norm = color_fn,
+                 xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2,
+                 xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_GC))), lineheight = unit((19/(nrow(data2_GC))), "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
                  txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)),
                  hrzl_lines=hrzl_lines)}
   
@@ -441,25 +442,25 @@ shinyServer(function(input, output, session) {
   output$asthma_fc_download <- downloadHandler(
     filename= function(){paste0("fold_change_asthma_", graphgene(), "_", Sys.Date(), ".png")},
     content=function(file){
-      png(file, width=6, height=9, units="in", res=600)
+      png(file, width=12, height=9, units="in", res=600)
       forestplot_asthma()
       dev.off()})
   
   output$GC_fc_download <- downloadHandler(
       filename= function(){paste0("fold_change_GC_", graphgene(), "_", Sys.Date(), ".png")},
       content=function(file){
-          png(file, width=6, height=9, units="in", res=600)
+          png(file, width=12, height=9, units="in", res=600)
           forestplot_GC()
           dev.off()})
   
-  output$pval_download <- downloadHandler(
-      filename= function(){paste0("-log(pval)_heatmap_", graphgene(), "_", Sys.Date(), ".png")},
-      content=function(file){
-          png(file, width=6, height=9, units="in", res=600)
-          print(pval_plot()) # note that for this one, unlike other plot downloads, had to use print(). 
-          dev.off()})        # else the download is a blank file. this seems to be b/c pval_plot() creates a graph 
-                             # object but doesn't draw the plot, as per 
-                             # http://stackoverflow.com/questions/27008434/downloading-png-from-shiny-r-pt-2
+  # output$pval_download <- downloadHandler(
+  #     filename= function(){paste0("-log(pval)_heatmap_", graphgene(), "_", Sys.Date(), ".png")},
+  #     content=function(file){
+  #         png(file, width=6, height=9, units="in", res=600)
+  #         print(pval_plot()) # note that for this one, unlike other plot downloads, had to use print(). 
+  #         dev.off()})        # else the download is a blank file. this seems to be b/c pval_plot() creates a graph 
+  #                            # object but doesn't draw the plot, as per 
+  #                            # http://stackoverflow.com/questions/27008434/downloading-png-from-shiny-r-pt-2
        
   output$gene_tracks_download <- downloadHandler(
       filename= function(){paste0("gene_tracks_", graphgene(), "_", Sys.Date(), ".png")},
