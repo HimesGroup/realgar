@@ -52,10 +52,10 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
 
                         mainPanel(hr(),
                                   fluidRow(br(),
-                                           column(10, plotOutput(outputId="forestplot_asthma",width="900px", height="650px"), align="left"), 
+                                           column(10, plotOutput(outputId="forestplot_asthma",width="970px", height="650px"), align="left"), 
                                            div(style="margin-top: 45px", column(2, imageOutput("color_scale1"), align="right")), # margin-top needed to align color scale w/ forest plot
                                            column(12, downloadButton(outputId="asthma_fc_download",label="Download asthma forest plot"), align="center"), br(),
-                                           column(10, conditionalPanel(condition = "input.GC_included == 'GC'", plotOutput(outputId="forestplot_GC",width="900px", height="650px")),align="left"),
+                                           column(10, conditionalPanel(condition = "input.GC_included == 'GC'", plotOutput(outputId="forestplot_GC",width="970px", height="650px")),align="left"),
                                            column(2, div(style="margin-top: 45px", conditionalPanel(condition = "input.GC_included == 'GC'", imageOutput("color_scale2")), align="right")), # margin-top needed to align color scale w/ forest plot
                                            column(12, conditionalPanel(condition = "input.GC_included == 'GC'", downloadButton(outputId="GC_fc_download",label="Download GC forest plot")), align="center")),
                                            
