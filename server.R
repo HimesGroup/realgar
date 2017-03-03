@@ -20,7 +20,6 @@ Dataset_Info <- readRDS("databases/microarray_data_infosheet_R.RDS")
 
 #load and name GEO microarray and RNA-Seq datasets
 for (i in Dataset_Info$Unique_ID) {assign(i, readRDS(paste0("databases/microarray_results/", i, ".RDS")))} 
-#sleuth results come with a standard error, vs. for microarrays it is calculated - add SD column to microarray data sets
 
 Dataset_Info$PMID <- as.character(Dataset_Info$PMID) #else next line does not work
 Dataset_Info[is.na(Dataset_Info$PMID), "PMID"] <- ""
@@ -39,7 +38,10 @@ chrom_bands <- readRDS("databases/chrom_bands.RDS") #chromosome band info for id
 getPalette = colorRampPalette(brewer.pal(9, "Blues"))
 tfbs$color <- getPalette(50)[as.numeric(cut(tfbs$score,breaks = 50))]
 snp$color <- getPalette(1024)[as.numeric(cut(-snp$p,breaks = 1024))]
-snp_eve$color <- getPalette(1024)[as.numeric(cut(-snp_eve$meta_P,breaks = 1024))]
+snp_eve$color_meta_P <- getPalette(1024)[as.numeric(cut(-snp_eve$meta_P,breaks = 1024))]
+snp_eve$color_meta_P_AA <- getPalette(1024)[as.numeric(cut(-snp_eve$meta_P_AA,breaks = 1024))]
+snp_eve$color_meta_P_EA <- getPalette(1024)[as.numeric(cut(-snp_eve$meta_P_EA,breaks = 1024))]
+snp_eve$color_meta_P_LAT <- getPalette(1024)[as.numeric(cut(-snp_eve$meta_P_LAT,breaks = 1024))]
 snp_gabriel$color <- getPalette(1024)[as.numeric(cut(-snp_gabriel$P_fix,breaks = 1024))]
 
 # make a list of gene symbols in all datasets for checking whether gene symbol entered is valid - used for GeneSymbol later on
@@ -80,6 +82,12 @@ shinyServer(function(input, output, session) {
       else
       {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=checkbox_choices,selected=c("BE", "LEC", "NE", "CD4", "CD8", "PBMC", "WBC", "ASM", "BAL", "Lung",
                                                                                                  "chALL", "MCF10A-Myc", "MACRO", "U2O", "LCL", "SAE"), inline = TRUE)}})
+  
+  #########################################
+  ## reactive UI for EVE p-value options ##
+  #########################################
+  output$eve_incl <- reactive({if("snp_eve_subs" %in% input$which_SNPs) {"Options for displaying GWAS results:"} else {""}})
+  
   #######################
   ## GEO studies table ##
   #######################
@@ -87,7 +95,7 @@ shinyServer(function(input, output, session) {
   #Jessica's initial app had an "and" condition here; I changed it to "or"
   UserDataset_Info <- reactive({
       Dataset_Info1 = subset(Dataset_Info,(((Dataset_Info$Tissue %in% input$Tissue) | (Dataset_Info$Asthma %in% input$Asthma)) & Dataset_Info$App == "asthma")) 
-      Dataset_Info2 = subset(Dataset_Info, ((Dataset_Info$Tissue %in% input$Tissue) & (Dataset_Info$App %in% input$GC_included))) 
+      Dataset_Info2 = subset(Dataset_Info, (((Dataset_Info$Tissue %in% input$Tissue) & (Dataset_Info$Asthma %in% input$GC_included)) | Dataset_Info$App %in% input$GC_included))
       Dataset_Info = rbind(Dataset_Info1, Dataset_Info2)}) # this separates GC and asthma data 
   
   #add links for GEO_ID and PMID
@@ -159,7 +167,7 @@ shinyServer(function(input, output, session) {
     #calculate the fold change, order by fold change for levelplots
   validate(need(GeneSymbol() != FALSE, "Please enter a valid gene symbol or SNP ID.")) # Generate error message if the gene symbol is not right.
   output.table <- dplyr::mutate(output.table, Fold_Change=2^(logFC), neglogofP=(-log10(adj.P.Val)), Lower_bound_CI = 2^(lower), Upper_bound_CI = 2^(upper)) #note that this is taking -log10 of adjusted p-value
-  row.names(output.table) <- output.table$Unique_ID #crucial for plot labels on levelplot
+  # row.names(output.table) <- output.table$Unique_ID #crucial for plot labels on levelplot
   output.table <- output.table[order(output.table$Fold_Change),]})
   
 
@@ -184,14 +192,14 @@ shinyServer(function(input, output, session) {
                                        dplyr::select(`Study ID`, `Comparison`, `P Value`, `Q Value`, `Fold Change(95% CI)`))
   # GC
   data_GC <- reactive({ output.tableforplot_GC = output.tableforplot()
-  output.tableforplot_GC = output.tableforplot_GC[output.tableforplot_GC$App == "GC",]
+  output.tableforplot_GC = output.tableforplot_GC[output.tableforplot_GC$App %in% c("GC", "BA", "vitD"),]
   output.tableforplot_GC[rev(rownames(output.tableforplot_GC)),]})
   
   data2_GC <- reactive({
       data_GC()%>%
           dplyr::select(Unique_ID, adj.P.Val, P.Value, Fold_Change, neglogofP, Lower_bound_CI, Upper_bound_CI) %>%
           dplyr::mutate(Fold_Change=round(Fold_Change,digits=2),adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), P.Value =format(P.Value, scientific=TRUE, digits=3), 
-                 Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2), Comparison = "Glucocorticoid vs. control")%>%
+                 Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2), Comparison = "Treatment vs. control")%>%
           dplyr::rename(`Study ID`=Unique_ID, `P Value`=P.Value, `Q Value`=adj.P.Val, `Fold Change`=Fold_Change)})
   
   tableforgraph_GC <- reactive(data2_GC()%>% 
@@ -239,15 +247,21 @@ shinyServer(function(input, output, session) {
       tabletext <- rbind(tabletext,text_temp)
       
       #hrzl_lines are borders between rows... made wide enough to be a background
+      size_par <- max(6, nrow(data2_Asthma)) #else plot scaling messed up when fewer than 5 datasets selected
       hrzl_lines <- vector("list", nrow(tabletext)+1)
-      hrzl_lines[[1]] <- gpar(lwd=1000/nrow(data2_Asthma), lineend="butt", columns=5, col="#ffffff")
-      hrzl_lines[[2]] <- gpar(lwd=250/nrow(data2_Asthma), lineend="butt", columns=5, col="#d3cecc")
-      for (i in 3:(length(hrzl_lines)-1)) {hrzl_lines[[i]]  <- gpar(lwd=750/nrow(data2_Asthma), lineend="butt", columns=5, col="#d3cecc")}
-      hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=150/nrow(data2_Asthma), lineend="butt", columns=5, col="#ffffff")
+      # hrzl_lines[[2]] <- gpar(lwd=350/size_par, lineend="butt", columns=5, col="#d3cecc")
+      for (i in setdiff(c(3:(length(hrzl_lines)-1)),c(1))) {hrzl_lines[[i]]  <- if(nrow(data2_Asthma)==1) {
+          gpar(lwd=100, lineend="butt", columns=5, col="#d3cecc")
+      } else {
+          gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#d3cecc")}
+      }
+      hrzl_lines[[1]] <- gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#ffffff")
+      hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=150/size_par, lineend="butt", columns=5, col="#ffffff")
+      
       
       forestplot(tabletext, title = "Asthma vs. Non-asthma", rbind(c(NA,NA,NA,NA),data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]), zero = 1, 
                  xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2, 
-                 xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_Asthma))), lineheight = unit((19/nrow(data2_Asthma)), "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
+                 xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_Asthma))), lineheight = unit(20/size_par, "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
                  txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)),
                  hrzl_lines=hrzl_lines)
   }
@@ -282,15 +296,20 @@ shinyServer(function(input, output, session) {
       tabletext <- rbind(tabletext,text_temp)
 
       #hrzl_lines are borders between rows... made wide enough to be a background
+      size_par <- max(6, nrow(data2_GC))
       hrzl_lines <- vector("list", nrow(tabletext)+1)
-      hrzl_lines[[1]] <- gpar(lwd=1000/nrow(data2_GC), lineend="butt", columns=5, col="#ffffff")
-      hrzl_lines[[2]] <- gpar(lwd=250/nrow(data2_GC), lineend="butt", columns=5, col="#d3cecc")
-      for (i in 3:(length(hrzl_lines)-1)) {hrzl_lines[[i]]  <- gpar(lwd=750/nrow(data2_GC), lineend="butt", columns=5, col="#d3cecc")}
-      hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=150/nrow(data2_GC), lineend="butt", columns=5, col="#ffffff")
+      # hrzl_lines[[2]] <- gpar(lwd=350/size_par, lineend="butt", columns=5, col="#d3cecc")
+      for (i in setdiff(c(3:(length(hrzl_lines)-1)),c(1))) {hrzl_lines[[i]]  <- if(nrow(data2_GC)==1) {
+          gpar(lwd=100, lineend="butt", columns=5, col="#d3cecc")
+      } else {
+          gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#d3cecc")}
+      }
+      hrzl_lines[[1]] <- gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#ffffff")
+      hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=150/size_par, lineend="butt", columns=5, col="#ffffff")
       
       forestplot(tabletext, title = "Glucocorticoid vs. Control", rbind(c(NA,NA,NA,NA),data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]) ,zero = 1, 
                  xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2,
-                 xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_GC))), lineheight = unit((19/(nrow(data2_GC))), "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
+                 xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_GC))), lineheight = unit(20/size_par, "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
                  txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)),
                  hrzl_lines=hrzl_lines)}
   
@@ -323,7 +342,9 @@ shinyServer(function(input, output, session) {
       else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
   snp_eve_subs <- reactive({
       if(("snp_eve_subs" %in% input$which_SNPs)) {unique(filter(snp_eve, symbol==curr_gene()))}
-      else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
+      else {data.frame(matrix(nrow = 0, ncol = 0))}
+      }) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
+  
   snp_gabriel_subs <- reactive({
       if(("snp_gabriel_subs" %in% input$which_SNPs)) {unique(filter(snp_gabriel, symbol==curr_gene()))}
       else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
@@ -371,7 +392,15 @@ shinyServer(function(input, output, session) {
 
       # EVE SNPs track
       if (nrow(snp_eve_subs) > 0) {
-          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (from EVE)", fill = snp_eve_subs$color, group=snp_eve_subs$snp)
+          
+          snp_eve_subs$eve_color <- reactive({
+              if (input$which_eve_pvals == "meta_P") {snp_eve_subs$color_meta_P}
+              if (input$which_eve_pvals == "meta_P_AA") {snp_eve_subs$color_meta_P_AA}
+              if (input$which_eve_pvals == "meta_P_EA") {snp_eve_subs$color_meta_P_EA}
+              if (input$which_eve_pvals == "meta_P_LAT") {snp_eve_subs$color_meta_P_LAT}
+          })
+          
+          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (from EVE)", fill = snp_eve_subs$eve_color(), group=snp_eve_subs$snp)
 
           #rough estimate of number of stacks there will be in SNP track - for track scaling
           if (nrow(snp_eve_subs) > 1) {
@@ -432,8 +461,37 @@ shinyServer(function(input, output, session) {
     }
     
      #plot height increases if more tracks are displayed
-     observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, height=400 + 15*length(unique(gene_subs()$transcript)) + 10*(nrow(snp_subs())+nrow(snp_eve_subs())+nrow(snp_gabriel_subs())), width=1055)})
+     observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, width=1055,
+                                                     height=400 + 15*length(unique(gene_subs()$transcript)) + 10*(nrow(snp_subs())+nrow(snp_eve_subs())+nrow(snp_gabriel_subs())))})
+     
+     
+  #################################
+  ## SNP data table for download ##
+  #################################
+  snp_subs_temp <- reactive({
+      snp_subs()%>%
+          dplyr::rename(position=start, meta_P=p) %>%
+          dplyr::mutate(source = "GRASP") %>%
+          dplyr::select(chromosome, snp, symbol, position, pmid, source, meta_P)
+  })
+  
+  snp_eve_subs_temp <- reactive({
+      snp_eve_subs() %>%
+          # dplyr::rename(position=start) %>%
+          dplyr::mutate(source = "EVE") %>%
+          dplyr::select(-c(end, color_meta_P, color_meta_P_EA, color_meta_P_AA, color_meta_P_LAT))
+  })
+  
+  snp_gabriel_subs_temp <- reactive({
+      snp_gabriel_subs() %>%
+          dplyr::rename(position=start, meta_P=P_ran) %>%
+          dplyr::mutate(source = "GABRIEL") %>%
+          dplyr::select(-c(end, color, P_fix))
+  })
 
+  
+  snp_data <- reactive({dplyr::bind_rows(snp_subs_temp(), snp_eve_subs_temp(), snp_gabriel_subs_temp())})
+      
   ######################
   ## Download buttons ##
   ######################
@@ -471,4 +529,7 @@ shinyServer(function(input, output, session) {
   
   output$table_download <- downloadHandler(filename = function() {paste0('Asthma&GC_data_summary_table_',graphgene(), Sys.Date(), '.csv')},
                                                   content = function(file) {write.csv(rbind(tableforgraph_Asthma(), tableforgraph_GC()), file, row.names=FALSE)})
+  
+  output$SNP_data_download <- downloadHandler(filename = function() {paste0('SNP_results_for_',graphgene(), Sys.Date(), '.csv')},
+                                              content = function(file) {write.csv(snp_data(), file, row.names=FALSE)})
 })
