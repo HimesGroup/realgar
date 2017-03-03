@@ -38,12 +38,15 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                                                           column(2, fluidRow(checkboxGroupInput(inputId="Asthma", label="Asthma Type", choices=c("Allergic asthma"="allergic_asthma", "Asthma"="asthma", "Asthma and rhinitis"="asthma_and_rhinitis",
                                                                                                                                                  "Fatal asthma"="fatal_asthma", "Mild asthma"="mild_asthma", "Non-allergic asthma"="non_allergic_asthma",
                                                                                                                                                  "Non-asthma smoker"="non_asthma_smoker","Severe asthma"="severe_asthma"), selected="asthma"), inline = TRUE), align="left"),
-                                                  column(2, fluidRow(radioButtons(inputId="GC_included", label="Treatment", 
-                                                                                   choice = c("Glucocorticoid treatment" = "GC", "No treatment" = ""), select = "")),
-                                                         fluidRow(checkboxGroupInput(inputId="which_SNPs", label="GWAS results to include", choices=c("EVE"="snp_eve_subs", "GABRIEL"="snp_gabriel_subs", "GRASP"="snp_subs"), selected=c("snp_eve_subs", "snp_gabriel_subs", "snp_subs"))), align="left"),
+                                                  column(2, fluidRow(checkboxGroupInput(inputId="GC_included", label="Treatment", 
+                                                                                   choice = c("Beta-agonist treatment"="BA", "Glucocorticoid treatment" = "GC", "Vitamin D treatment"="vitD"), selected="")),
+                                                         fluidRow(checkboxGroupInput(inputId="which_SNPs", label="GWAS results to include", choices=c("EVE"="snp_eve_subs", "GABRIEL"="snp_gabriel_subs", "GRASP"="snp_subs"), selected=c("snp_subs"))
+                                                                  ), align="left"),
                                                   column(3, fluidRow(textInput(inputId="curr_gene",label="Type official gene symbol or SNP ID:", value= "GAPDH"),
                                                                   tags$head(tags$style(type="text/css", "#curr_gene {width: 190px}"))),
-                                                         fluidRow(img(src="http://shiny.rstudio.com/tutorial/lesson2/www/bigorb.png", height=35, width=38), "Created with RStudio's ", a("Shiny", href="http://www.rstudio.com/shiny")), align="center")),
+                                                         fluidRow(img(src="http://shiny.rstudio.com/tutorial/lesson2/www/bigorb.png", height=35, width=38), "Created with RStudio's ", a("Shiny", href="http://www.rstudio.com/shiny"))
+                                                         ,fluidRow(br(), uiOutput("eve_incl"), conditionalPanel(condition = "output.eve_incl=='Options for displaying GWAS results:'", selectInput("which_eve_pvals", "Which EVE p-values to use?", list("Overall"="meta_P", "African American"="meta_P_AA", "European American"="meta_P_EA", "Latino"="meta_P_LAT"), selected="meta_P"))),
+                                                         align="center")),
                                                   hr()), 
                                            fluidRow(column(12, h4(strong("Data download:")),align = "left")),
                                            fluidRow(column(12, h5("The results displayed in the forest plots and gene tracks below may also be downloaded directly here:"))), br(),
@@ -54,19 +57,10 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                                   fluidRow(br(),
                                            column(10, plotOutput(outputId="forestplot_asthma",width="970px", height="650px"), align="left"), 
                                            div(style="margin-top: 45px", column(2, imageOutput("color_scale1"), align="right")), # margin-top needed to align color scale w/ forest plot
-                                           column(12, downloadButton(outputId="asthma_fc_download",label="Download asthma forest plot"), align="center"), br(),
-                                           column(10, conditionalPanel(condition = "input.GC_included == 'GC'", plotOutput(outputId="forestplot_GC",width="970px", height="650px")),align="left"),
-                                           column(2, div(style="margin-top: 45px", conditionalPanel(condition = "input.GC_included == 'GC'", imageOutput("color_scale2")), align="right")), # margin-top needed to align color scale w/ forest plot
-                                           column(12, conditionalPanel(condition = "input.GC_included == 'GC'", downloadButton(outputId="GC_fc_download",label="Download GC forest plot")), align="center")),
-                                           
-                                  fluidRow(br()
-                                      # column(12, h5(strong("Results Used to Create Plots Above")), align = "center")
-                                      ),
-                                  
-                                  fluidRow(
-                                           # column(10, offset= 1, DT::dataTableOutput(outputId="tableforgraph"), align="center")
-                                           # column(12, downloadButton(outputId="table_download", label="Download table"), align="center")
-                                           ),br(), hr(), width = 12,
+                                           column(12, downloadButton(outputId="asthma_fc_download",label="Download asthma forest plot"), align="center"), 
+                                           column(10, conditionalPanel(condition = "input.GC_included != ''", br(), br(), plotOutput(outputId="forestplot_GC",width="970px", height="650px")),align="left"),
+                                           column(2, div(style="margin-top: 45px", conditionalPanel(condition = "input.GC_included != ''", imageOutput("color_scale2")), align="right")), # margin-top needed to align color scale w/ forest plot
+                                           column(12, conditionalPanel(condition = "input.GC_included != ''", downloadButton(outputId="GC_fc_download",label="Download GC forest plot")), align="center")), br(), hr(), width = 12,
                                   
                                   fluidRow(column(12, p("Transcripts for the selected gene are displayed here. ",
                                                         "Any SNPs and/or GR binding sites that fall within the gene ",
@@ -75,7 +69,7 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                                                         "ENCODE binding score, ",
                                                         "with the highest binding scores corresponding to the darkest color. ",
                                                         "SNPs are colored by p-value, with the lowest p-values corresponding to the darkest color.",
-                                                        "All SNP p-values are <=0.05 and are obtained directly",
+                                                        "All SNP p-values are obtained directly",
                                                         "from the study in which the association was published.")),
                                            column(12, downloadButton(outputId="gene_tracks_download", label="Download gene tracks"), align="center"), br(),
                                            column(12, align="center", plotOutput(outputId="gene_tracks_outp2"), br(), br())))),
