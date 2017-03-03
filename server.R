@@ -10,7 +10,6 @@ library(data.table)
 library(forestplot) 
 library(lattice)
 library(stringr)
-library(RColorBrewer)
 library(viridis) 
 library(DT) 
 library(Gviz) 
@@ -34,15 +33,14 @@ chrom_bands <- readRDS("databases/chrom_bands.RDS") #chromosome band info for id
 #unlike all other files, gene_locations is faster with fread than with readRDS (2s load, vs 4s)
 
 #color tfbs based on binding score - used in tracks
-#create color scheme based on values tfbs binding score & snp p-values
-getPalette = colorRampPalette(brewer.pal(9, "Blues"))
-tfbs$color <- getPalette(50)[as.numeric(cut(tfbs$score,breaks = 50))]
-snp$color <- getPalette(1024)[as.numeric(cut(-snp$p,breaks = 1024))]
-snp_eve$color_meta_P <- getPalette(1024)[as.numeric(cut(-snp_eve$meta_P,breaks = 1024))]
-snp_eve$color_meta_P_AA <- getPalette(1024)[as.numeric(cut(-snp_eve$meta_P_AA,breaks = 1024))]
-snp_eve$color_meta_P_EA <- getPalette(1024)[as.numeric(cut(-snp_eve$meta_P_EA,breaks = 1024))]
-snp_eve$color_meta_P_LAT <- getPalette(1024)[as.numeric(cut(-snp_eve$meta_P_LAT,breaks = 1024))]
-snp_gabriel$color <- getPalette(1024)[as.numeric(cut(-snp_gabriel$P_fix,breaks = 1024))]
+#create color scheme based on encode binding score & snp p-values
+tfbs$color <- inferno(50)[as.numeric(cut(tfbs$score,breaks = 50))]
+snp$color <- inferno(1024)[as.numeric(cut(-snp$p,breaks = 1024))]
+snp_eve$color_meta_P <- inferno(1024)[as.numeric(cut(-snp_eve$meta_P,breaks = 1024))]
+snp_eve$color_meta_P_AA <- inferno(1024)[as.numeric(cut(-snp_eve$meta_P_AA,breaks = 1024))]
+snp_eve$color_meta_P_EA <- inferno(1024)[as.numeric(cut(-snp_eve$meta_P_EA,breaks = 1024))]
+snp_eve$color_meta_P_LAT <- inferno(1024)[as.numeric(cut(-snp_eve$meta_P_LAT,breaks = 1024))]
+snp_gabriel$color <- inferno(1024)[as.numeric(cut(-snp_gabriel$P_ran,breaks = 1024))]
 
 # make a list of gene symbols in all datasets for checking whether gene symbol entered is valid - used for GeneSymbol later on
 genes_avail <- vector()
@@ -86,7 +84,7 @@ shinyServer(function(input, output, session) {
   #########################################
   ## reactive UI for EVE p-value options ##
   #########################################
-  output$eve_incl <- reactive({if("snp_eve_subs" %in% input$which_SNPs) {"Options for displaying GWAS results:"} else {""}})
+  output$eve_incl <- reactive({if("snp_eve_subs" %in% input$which_SNPs) {"GWAS display options:"} else {""}})
   
   #######################
   ## GEO studies table ##
@@ -199,7 +197,7 @@ shinyServer(function(input, output, session) {
       data_GC()%>%
           dplyr::select(Unique_ID, adj.P.Val, P.Value, Fold_Change, neglogofP, Lower_bound_CI, Upper_bound_CI) %>%
           dplyr::mutate(Fold_Change=round(Fold_Change,digits=2),adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), P.Value =format(P.Value, scientific=TRUE, digits=3), 
-                 Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2), Comparison = "Treatment vs. control")%>%
+                 Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2), Comparison = "Glucocorticoid vs. control")%>%
           dplyr::rename(`Study ID`=Unique_ID, `P Value`=P.Value, `Q Value`=adj.P.Val, `Fold Change`=Fold_Change)})
   
   tableforgraph_GC <- reactive(data2_GC()%>% 
@@ -307,7 +305,7 @@ shinyServer(function(input, output, session) {
       hrzl_lines[[1]] <- gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#ffffff")
       hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=150/size_par, lineend="butt", columns=5, col="#ffffff")
       
-      forestplot(tabletext, title = "Glucocorticoid vs. Control", rbind(c(NA,NA,NA,NA),data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]) ,zero = 1, 
+      forestplot(tabletext, title = "Treatment vs. Control", rbind(c(NA,NA,NA,NA),data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]) ,zero = 1, 
                  xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2,
                  xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_GC))), lineheight = unit(20/size_par, "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
                  txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)),
@@ -341,10 +339,16 @@ shinyServer(function(input, output, session) {
       if(("snp_subs" %in% input$which_SNPs)) {unique(filter(snp, symbol==curr_gene()))} 
       else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
   snp_eve_subs <- reactive({
-      if(("snp_eve_subs" %in% input$which_SNPs)) {unique(filter(snp_eve, symbol==curr_gene()))}
-      else {data.frame(matrix(nrow = 0, ncol = 0))}
+      if(("snp_eve_subs" %in% input$which_SNPs)) {
+          unique(snp_eve %>%
+              dplyr::filter(symbol==curr_gene()) %>%
+              dplyr::mutate(color = 
+                            ifelse(input$which_eve_pvals == "meta_P_AA", color_meta_P_AA,
+                            ifelse(input$which_eve_pvals == "meta_P_EA", color_meta_P_EA,
+                            ifelse(input$which_eve_pvals == "meta_P_LAT", color_meta_P_LAT, color_meta_P))))) #color_meta_P is default
+          } else {data.frame(matrix(nrow = 0, ncol = 0))}
       }) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
-  
+
   snp_gabriel_subs <- reactive({
       if(("snp_gabriel_subs" %in% input$which_SNPs)) {unique(filter(snp_gabriel, symbol==curr_gene()))}
       else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
@@ -373,7 +377,7 @@ shinyServer(function(input, output, session) {
       #tfbs and snp tracks - only present for some genes
       
       #TFBS
-      if (nrow(tfbs_subs) > 0) {tfbs_track <- Gviz::AnnotationTrack(tfbs_subs, name="GR binding", fill = tfbs_subs$color, group = " ")}
+      if (nrow(tfbs_subs) > 0) {tfbs_track <- Gviz::AnnotationTrack(tfbs_subs, name="GR binding", fill = tfbs_subs$color, group = tfbs_subs$score)}
       
       # GRASP SNPs track
       if (nrow(snp_subs) > 0) { 
@@ -393,14 +397,7 @@ shinyServer(function(input, output, session) {
       # EVE SNPs track
       if (nrow(snp_eve_subs) > 0) {
           
-          snp_eve_subs$eve_color <- reactive({
-              if (input$which_eve_pvals == "meta_P") {snp_eve_subs$color_meta_P}
-              if (input$which_eve_pvals == "meta_P_AA") {snp_eve_subs$color_meta_P_AA}
-              if (input$which_eve_pvals == "meta_P_EA") {snp_eve_subs$color_meta_P_EA}
-              if (input$which_eve_pvals == "meta_P_LAT") {snp_eve_subs$color_meta_P_LAT}
-          })
-          
-          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (from EVE)", fill = snp_eve_subs$eve_color(), group=snp_eve_subs$snp)
+          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (from EVE)", fill = snp_eve_subs$color, group=snp_eve_subs$snp)
 
           #rough estimate of number of stacks there will be in SNP track - for track scaling
           if (nrow(snp_eve_subs) > 1) {
@@ -469,24 +466,30 @@ shinyServer(function(input, output, session) {
   ## SNP data table for download ##
   #################################
   snp_subs_temp <- reactive({
-      snp_subs()%>%
-          dplyr::rename(position=start, meta_P=p) %>%
-          dplyr::mutate(source = "GRASP") %>%
-          dplyr::select(chromosome, snp, symbol, position, pmid, source, meta_P)
+      if (nrow(snp_subs()) > 0) {
+          snp_subs()%>%
+              dplyr::rename(position=start, meta_P=p) %>%
+              dplyr::mutate(source = "GRASP") %>%
+              dplyr::select(chromosome, snp, symbol, position, pmid, source, meta_P)
+      }
   })
   
   snp_eve_subs_temp <- reactive({
-      snp_eve_subs() %>%
-          # dplyr::rename(position=start) %>%
-          dplyr::mutate(source = "EVE") %>%
-          dplyr::select(-c(end, color_meta_P, color_meta_P_EA, color_meta_P_AA, color_meta_P_LAT))
+      if (nrow(snp_eve_subs()) > 0) {
+          snp_eve_subs() %>%
+              dplyr::rename(position=start) %>%
+              dplyr::mutate(source = "EVE") %>%
+              dplyr::select(-c(end, color_meta_P, color_meta_P_EA, color_meta_P_AA, color_meta_P_LAT, color))
+      }
   })
   
   snp_gabriel_subs_temp <- reactive({
-      snp_gabriel_subs() %>%
-          dplyr::rename(position=start, meta_P=P_ran) %>%
-          dplyr::mutate(source = "GABRIEL") %>%
-          dplyr::select(-c(end, color, P_fix))
+      if (nrow(snp_gabriel_subs()) > 0) {
+          snp_gabriel_subs() %>%
+              dplyr::rename(position=start, meta_P=P_ran) %>%
+              dplyr::mutate(source = "GABRIEL") %>%
+              dplyr::select(-c(end, color))
+      }
   })
 
   
