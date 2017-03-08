@@ -61,8 +61,9 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                                            div(style="margin-top: 45px", column(2, imageOutput("color_scale1"), align="right")), # margin-top needed to align color scale w/ forest plot
                                            column(12, downloadButton(outputId="asthma_fc_download",label="Download asthma forest plot"), align="center"), 
                                            column(10, conditionalPanel(condition = "input.GC_included != ''", br(), br(), plotOutput(outputId="forestplot_GC",width="970px", height="650px")),align="left"),
-                                           column(2, div(style="margin-top: 45px", conditionalPanel(condition = "input.GC_included != ''", imageOutput("color_scale2")), align="right")), # margin-top needed to align color scale w/ forest plot
-                                           column(12, conditionalPanel(condition = "input.GC_included != ''", downloadButton(outputId="GC_fc_download",label="Download GC forest plot")), align="center")), br(), hr(), width = 12,
+                                           column(2, div(style="margin-top: 80px", conditionalPanel(condition = "input.GC_included != ''", imageOutput("color_scale2")), align="right")), # margin-top needed to align color scale w/ forest plot
+                                           column(12, conditionalPanel(condition = "input.GC_included != ''", downloadButton(outputId="GC_fc_download",label="Download GC forest plot")), align="center"),
+                                           column(12, conditionalPanel(condition = "input.GC_included != ''", h5("Alb=Albuterol; Dex=Dexamethasone")), align="right")), br(), hr(), width = 12,
                                   
                                   fluidRow(column(12, p("Transcripts for the selected gene are displayed here. ",
                                                         "Any SNPs and/or GR binding sites that fall within the gene ",
