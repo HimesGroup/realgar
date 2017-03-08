@@ -235,14 +235,18 @@ shinyServer(function(input, output, session) {
       text_asthma = data2_Asthma$`Study ID`
       
       xticks = seq(from = min(0.9, min(data2_Asthma$Lower_bound_CI)), to = max(max(data2_Asthma$Upper_bound_CI),1.2), length.out = 5)
-      
-      
+   
       tabletext <- matrix(nrow=1, ncol=4)
       tabletext[1,] <- c("GEO ID", "Tissue", "Endotype", "Q Value")
-      text_temp <- cbind(as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_Asthma$`Study ID`),c(1,11,4)]), data2_Asthma$`Q Value`)
+      text_temp <- merge(data2_Asthma, as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_Asthma$`Study ID`),]), by.x="Study ID", by.y="Unique_ID")
+      text_temp <- text_temp[order(-text_temp$`Fold Change`),]
+      text_temp <- text_temp[,c(9,19,12,2)]
       text_temp[,2] <- gsub(" cells", "", text_temp[,2])
       text_temp[,3] <- gsub("_", " ", text_temp[,3])
+      colnames(tabletext) <- colnames(text_temp)
       tabletext <- rbind(tabletext,text_temp)
+      options(useFancyQuotes = FALSE)
+      tabletext <- gsub('"', '', sapply(tabletext, dQuote))
       
       #hrzl_lines are borders between rows... made wide enough to be a background
       size_par <- max(6, nrow(data2_Asthma)) #else plot scaling messed up when fewer than 5 datasets selected
@@ -259,7 +263,7 @@ shinyServer(function(input, output, session) {
       
       forestplot(tabletext, title = "Asthma vs. Non-asthma", rbind(c(NA,NA,NA,NA),data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]), zero = 1, 
                  xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2, 
-                 xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_Asthma))), lineheight = unit(20/size_par, "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
+                 xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_Asthma))), lineheight = unit(19.7/size_par, "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
                  txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)),
                  hrzl_lines=hrzl_lines)
   }
@@ -285,13 +289,18 @@ shinyServer(function(input, output, session) {
       text_GC = data2_GC$`Study ID`
       
       xticks = seq(from = min(min(0.9, data2_GC$Lower_bound_CI)), to = max(max(data2_GC$Upper_bound_CI),1.2), length.out = 5)
-      
+
       tabletext <- matrix(nrow=1, ncol=4)
       tabletext[1,] <- c("GEO ID", "Tissue", "Treatment", "Q Value")
-      text_temp <- cbind(as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_GC$`Study ID`),c(1,11,6)]), data2_GC$`Q Value`)
+      text_temp <- merge(data2_GC, as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_GC$`Study ID`),]), by.x="Study ID", by.y="Unique_ID")
+      text_temp <- text_temp[order(-text_temp$`Fold Change`),]
+      text_temp <- text_temp[,c(9,19,14,2)]
       text_temp[,2] <- gsub(" cells", "", text_temp[,2])
       text_temp[,3] <- gsub("_", " ", text_temp[,3])
+      colnames(tabletext) <- colnames(text_temp)
       tabletext <- rbind(tabletext,text_temp)
+      options(useFancyQuotes = FALSE)
+      tabletext <- gsub('"', '', sapply(tabletext, dQuote))
 
       #hrzl_lines are borders between rows... made wide enough to be a background
       size_par <- max(6, nrow(data2_GC))
@@ -307,7 +316,7 @@ shinyServer(function(input, output, session) {
       
       forestplot(tabletext, title = "Treatment vs. Control", rbind(c(NA,NA,NA,NA),data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]) ,zero = 1, 
                  xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2,
-                 xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_GC))), lineheight = unit(20/size_par, "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
+                 xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_GC))), lineheight = unit(19.7/size_par, "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
                  txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)),
                  hrzl_lines=hrzl_lines)}
   
@@ -345,7 +354,8 @@ shinyServer(function(input, output, session) {
               dplyr::mutate(color = 
                             ifelse(input$which_eve_pvals == "meta_P_AA", color_meta_P_AA,
                             ifelse(input$which_eve_pvals == "meta_P_EA", color_meta_P_EA,
-                            ifelse(input$which_eve_pvals == "meta_P_LAT", color_meta_P_LAT, color_meta_P))))) #color_meta_P is default
+                            ifelse(input$which_eve_pvals == "meta_P_LAT", color_meta_P_LAT, color_meta_P)))) %>% #color_meta_P is default
+              dplyr::filter(!is.na(color))) #only show those SNPs that HAVE a pval and it is <=0.05 
           } else {data.frame(matrix(nrow = 0, ncol = 0))}
       }) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
 
@@ -381,7 +391,7 @@ shinyServer(function(input, output, session) {
       
       # GRASP SNPs track
       if (nrow(snp_subs) > 0) { 
-          snp_track <- Gviz::AnnotationTrack(snp_subs, name="SNPs (from GRASP)", fill = snp_subs$color, group=snp_subs$snp)
+          snp_track <- Gviz::AnnotationTrack(snp_subs, name="SNPs (GRASP)", fill = snp_subs$color, group=snp_subs$snp)
           
           #rough estimate of number of stacks there will be in SNP track - for track scaling
           #note this stuff needs the SNPs to be ordered by position (smallest to largest)
@@ -397,7 +407,7 @@ shinyServer(function(input, output, session) {
       # EVE SNPs track
       if (nrow(snp_eve_subs) > 0) {
           
-          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (from EVE)", fill = snp_eve_subs$color, group=snp_eve_subs$snp)
+          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (EVE)", fill = snp_eve_subs$color, group=snp_eve_subs$snp)
 
           #rough estimate of number of stacks there will be in SNP track - for track scaling
           if (nrow(snp_eve_subs) > 1) {
@@ -411,7 +421,7 @@ shinyServer(function(input, output, session) {
       
       # GABRIEL SNPs track
       if (nrow(snp_gabriel_subs) > 0) {
-          snp_gabriel_track <- Gviz::AnnotationTrack(snp_gabriel_subs, name="SNPs (from GABRIEL)", fill = snp_gabriel_subs$color, group=snp_gabriel_subs$snp)
+          snp_gabriel_track <- Gviz::AnnotationTrack(snp_gabriel_subs, name="SNPs (GABRIEL)", fill = snp_gabriel_subs$color, group=snp_gabriel_subs$snp)
           
           #rough estimate of number of stacks there will be in SNP track - for track scaling
           if (nrow(snp_gabriel_subs) > 1) {
