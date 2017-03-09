@@ -54,7 +54,7 @@ shinyServer(function(input, output, session) {
   
     curr_gene <- reactive({
       if (tolower(input$curr_gene) %in% snp$snp) { #if SNP ID is entered, convert internally to corresponding gene symbol  
-          snp$symbol[which(snp$snp==input$curr_gene)]
+          snp$symbol[which(snp$snp==input$curr_gene[1])] #a SNP may correspond to multiple genes... currently just choosing the first
           } else {
           gsub(" ", "", toupper(input$curr_gene), fixed = TRUE) #make uppercase, remove spaces
           }
@@ -166,7 +166,7 @@ shinyServer(function(input, output, session) {
   validate(need(GeneSymbol() != FALSE, "Please enter a valid gene symbol or SNP ID.")) # Generate error message if the gene symbol is not right.
   output.table <- dplyr::mutate(output.table, Fold_Change=2^(logFC), neglogofP=(-log10(adj.P.Val)), Lower_bound_CI = 2^(lower), Upper_bound_CI = 2^(upper)) #note that this is taking -log10 of adjusted p-value
   # row.names(output.table) <- output.table$Unique_ID #crucial for plot labels on levelplot
-  output.table <- output.table[order(output.table$Fold_Change),]})
+  output.table <- output.table[order(output.table$Fold_Change, output.table$Upper_bound_CI),]})
   
 
   ###################################
@@ -239,7 +239,7 @@ shinyServer(function(input, output, session) {
       tabletext <- matrix(nrow=1, ncol=4)
       tabletext[1,] <- c("GEO ID", "Tissue", "Endotype", "Q Value")
       text_temp <- merge(data2_Asthma, as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_Asthma$`Study ID`),]), by.x="Study ID", by.y="Unique_ID")
-      text_temp <- text_temp[order(-text_temp$`Fold Change`),]
+      text_temp <- text_temp[order(-text_temp$`Fold Change`, -text_temp$Upper_bound_CI),]
       text_temp <- text_temp[,c(9,19,12,2)]
       text_temp[,2] <- gsub(" cells", "", text_temp[,2])
       text_temp[,3] <- gsub("_", " ", text_temp[,3])
@@ -293,7 +293,7 @@ shinyServer(function(input, output, session) {
       tabletext <- matrix(nrow=1, ncol=4)
       tabletext[1,] <- c("GEO ID", "Tissue", "Treatment", "Q Value")
       text_temp <- merge(data2_GC, as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_GC$`Study ID`),]), by.x="Study ID", by.y="Unique_ID")
-      text_temp <- text_temp[order(-text_temp$`Fold Change`),]
+      text_temp <- text_temp[order(-text_temp$`Fold Change`, -text_temp$Upper_bound_CI),]
       text_temp <- text_temp[,c(9,19,14,2)]
       text_temp[,2] <- gsub(" cells", "", text_temp[,2])
       text_temp[,3] <- gsub("_", " ", text_temp[,3])
@@ -400,9 +400,9 @@ shinyServer(function(input, output, session) {
               snp_range <- max(snp_subs_temp$start) - min(snp_subs_temp$start)
               snp_subs_temp$start_prev <- c(0, snp_subs_temp$start[1:(nrow(snp_subs_temp)-1)])
               snp_subs_temp$dist <- as.numeric(snp_subs_temp$start) - as.numeric(snp_subs_temp$start_prev)
-              snp_size_init <- 2 + as.numeric(nrow(snp_subs[which(snp_subs$dist < snp_range/10),])/2) + 0.8*length(unique(gene_subs$transcript))
-          } else {snp_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)}
-      } else {snp_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)}
+              snp_size_init <- 0.9 + 3*as.numeric(nrow(snp_subs[which(snp_subs$dist < snp_range/10),])) + 0.3*length(unique(gene_subs$transcript))
+          } else {snp_size_init <- 0.9 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)}
+      } else {snp_size_init <- 0.9 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)}
 
       # EVE SNPs track
       if (nrow(snp_eve_subs) > 0) {
@@ -415,9 +415,9 @@ shinyServer(function(input, output, session) {
               snp_eve_range <- max(snp_eve_subs_temp$start) - min(snp_eve_subs_temp$start)
               snp_eve_subs_temp$start_prev <- c(0, snp_eve_subs_temp$start[1:(nrow(snp_eve_subs_temp)-1)])
               snp_eve_subs_temp$dist <- as.numeric(snp_eve_subs_temp$start) - as.numeric(snp_eve_subs_temp$start_prev)
-              snp_eve_size_init <- 2 + as.numeric(nrow(snp_eve_subs[which(snp_eve_subs$dist < snp_eve_range/10),])/2) + 0.8*length(unique(gene_subs$transcript))
-          } else {snp_eve_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_eve_subs)}
-      } else {snp_eve_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_eve_subs)}
+              snp_eve_size_init <- 1.5 + as.numeric(nrow(snp_eve_subs[which(snp_eve_subs$dist < snp_eve_range/10),])) + 0.3*length(unique(gene_subs$transcript))
+          } else {snp_eve_size_init <- 1.4 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_eve_subs)}
+      } else {snp_eve_size_init <- 1.4 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_eve_subs)}
       
       # GABRIEL SNPs track
       if (nrow(snp_gabriel_subs) > 0) {
@@ -429,16 +429,16 @@ shinyServer(function(input, output, session) {
               snp_gabriel_range <- max(snp_gabriel_subs_temp$start) - min(snp_gabriel_subs_temp$start)
               snp_gabriel_subs_temp$start_prev <- c(0, snp_gabriel_subs_temp$start[1:(nrow(snp_gabriel_subs_temp)-1)])
               snp_gabriel_subs_temp$dist <- as.numeric(snp_gabriel_subs_temp$start) - as.numeric(snp_gabriel_subs_temp$start_prev)
-              snp_gabriel_size_init <- 2 + as.numeric(nrow(snp_gabriel_subs[which(snp_gabriel_subs$dist < snp_gabriel_range/10),])/2) + 0.8*length(unique(gene_subs$transcript))
-          } else {snp_gabriel_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_gabriel_subs)}
-      } else {snp_gabriel_size_init <- 1.2 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_gabriel_subs)}
+              snp_gabriel_size_init <- 1 + as.numeric(nrow(snp_gabriel_subs[which(snp_gabriel_subs$dist < snp_gabriel_range/10),])/4) + 0.2*length(unique(gene_subs$transcript))
+          } else {snp_gabriel_size_init <- 1.4 + 0.1*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_gabriel_subs)}
+      } else {snp_gabriel_size_init <- 1.4 + 0.1*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_gabriel_subs)}
       
       
       #track sizes - defaults throw off scaling as more tracks are added
-       chrom_size <- 1.2 + 0.01*length(unique(gene_subs$transcript)) + 0.01*nrow(snp_subs)
-       axis_size <- 1 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
-       gene_size <- 2 + 0.6*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
-       tfbs_size <- 2 + 0.075*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs)
+       chrom_size <- 1.2 + 0.01*length(unique(gene_subs$transcript)) + 0.01*nrow(snp_subs) + 0.005*nrow(snp_eve_subs) + 0.01*nrow(snp_gabriel_subs)
+       axis_size <- 1 + 0.05*length(unique(gene_subs$transcript)) + 0.01*nrow(snp_subs) + 0.005*nrow(snp_eve_subs) + 0.01*nrow(snp_gabriel_subs) 
+       gene_size <- 2 + 0.6*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs) + 0.05*nrow(snp_eve_subs) + 0.015*nrow(snp_gabriel_subs)
+       tfbs_size <- 2 + 0.075*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_subs) + 0.05*nrow(snp_eve_subs) + 0.015*nrow(snp_gabriel_subs)
        snp_size <- snp_size_init #from above
        snp_eve_size <- snp_eve_size_init #from above
        snp_gabriel_size <- snp_gabriel_size_init #from above
@@ -469,7 +469,7 @@ shinyServer(function(input, output, session) {
     
      #plot height increases if more tracks are displayed
      observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, width=1055,
-                                                     height=400 + 15*length(unique(gene_subs()$transcript)) + 10*(nrow(snp_subs())+nrow(snp_eve_subs())+nrow(snp_gabriel_subs())))})
+                                                     height=400 + 15*length(unique(gene_subs()$transcript)) + 30*nrow(snp_eve_subs()) + 10*(nrow(snp_subs())+nrow(snp_gabriel_subs())))})
      
      
   #################################
@@ -540,7 +540,7 @@ shinyServer(function(input, output, session) {
           gene_tracks()
           dev.off()})
   
-  output$table_download <- downloadHandler(filename = function() {paste0('Asthma&GC_data_summary_table_',graphgene(), Sys.Date(), '.csv')},
+  output$table_download <- downloadHandler(filename = function() {paste0('Asthma&GC_data_summary_table_',graphgene(),"_", Sys.Date(), '.csv')},
                                                   content = function(file) {write.csv(rbind(tableforgraph_Asthma(), tableforgraph_GC()), file, row.names=FALSE)})
   
   output$SNP_data_download <- downloadHandler(filename = function() {paste0('SNP_results_for_',graphgene(), Sys.Date(), '.csv')},
