@@ -18,7 +18,7 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                           " allowing researchers to access a breadth of information with a click. ",
                           "The RNA-Seq results displayed here can also be viewed at a transcript level in the ",
                           a("Lung Cell Transcriptome Explorer.", href="http://himeslab.org/asthmagenes/"),
-                          " We hope REALGAR will facilitate prioritization and experiment design, ", "
+                          " REALGAR will facilitate prioritization and experiment design, ", "
                           elucidating the role of of variants in complex disease",
                           " and leading to clinically actionable insights."), br(),
                         
