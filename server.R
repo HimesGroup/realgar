@@ -357,8 +357,7 @@ shinyServer(function(input, output, session) {
       else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
   snp_eve_subs <- reactive({
       if(("snp_eve_subs" %in% input$which_SNPs)) {
-          pval_selector <- paste0("color_", input$which_eve_pvals) 
-          snp_eve_temp <- snp_eve[which((snp_eve$symbol==curr_gene()) & (!is.na(unlist(snp_eve[,pval_selector, with=FALSE])))),] #with=FALSE to make data.table act like data.frame
+          snp_eve_temp <- snp_eve[which((snp_eve$symbol==curr_gene()) & (!is.na(unlist(snp_eve[,paste0("color_", input$which_eve_pvals), with=FALSE])))),] #with=FALSE to make data.table act like data.frame
           #need the second filter criterion because otherwise will output snp names & otherwise blank if NA pvalues
           if (nrow(snp_eve_temp) > 0) {snp_eve_temp} else {data.frame(matrix(nrow = 0, ncol = 0))} #since pval_selector might remove all rows 
           } else {data.frame(matrix(nrow = 0, ncol = 0))}
@@ -412,7 +411,7 @@ shinyServer(function(input, output, session) {
       # EVE SNPs track
       if (nrow(snp_eve_subs) > 0) {
           pval_choice <- reactive({input$which_eve_pvals})  #pval_choice is responsible for dynamically coloring snps based on user selection of population
-          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (EVE)", fill = unlist(snp_eve_subs[, paste0("color_", pval_choice())]), group=snp_eve_subs$snp)
+          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (EVE)", fill = unlist(snp_eve_subs[, paste0("color_", pval_choice()), with=FALSE]), group=snp_eve_subs$snp)
 
           #rough estimate of number of stacks there will be in SNP track - for track scaling
           if (nrow(snp_eve_subs) > 1) {
