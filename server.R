@@ -53,9 +53,17 @@ heatmap_colors <-  inferno # heatmap colors - used in p-value plot
 shinyServer(function(input, output, session) {
   
     curr_gene <- reactive({
-      if (tolower(input$curr_gene) %in% snp$snp) { #if SNP ID is entered, convert internally to corresponding gene symbol  
-          snp$symbol[which(snp$snp==input$curr_gene[1])] #a SNP may correspond to multiple genes... currently just choosing the first
-          } else {
+      if (gsub(" ", "", tolower(input$curr_gene), fixed=TRUE) %in% c(snp$snp, snp_eve$snp, snp_gabriel$snp)) { #if SNP ID is entered, convert internally to nearest gene symbol  
+          all_matches <- dplyr::bind_rows(snp[which(snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")], 
+                                          snp_eve[which(snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")], 
+                                          snp_gabriel[which(snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")])
+          gene_locations_unique <- gene_locations[which(!duplicated(gene_locations$symbol)),]
+          all_matches <- merge(all_matches, gene_locations_unique[,c("symbol", "start")], by="symbol")
+          all_matches$dist <- abs(all_matches$start - all_matches$end) # here, "end" is snp position, "start" is gene start 
+          unique(all_matches$symbol[which(all_matches$dist==min(all_matches$dist))]) # choose the gene symbol whose start is the smallest absolute distance away
+          } else { 
+              # if it is not in the list of snps, it is a gene id OR a snp that is not associated with asthma
+              # in the latter case it will not show up in the list of genes & user gets an "enter valid gene/snp id" message
           gsub(" ", "", toupper(input$curr_gene), fixed = TRUE) #make uppercase, remove spaces
           }
       }) 
@@ -349,13 +357,9 @@ shinyServer(function(input, output, session) {
       else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
   snp_eve_subs <- reactive({
       if(("snp_eve_subs" %in% input$which_SNPs)) {
-          unique(snp_eve %>%
-              dplyr::filter(symbol==curr_gene()) %>%
-              dplyr::mutate(color = 
-                            ifelse(input$which_eve_pvals == "meta_P_AA", color_meta_P_AA,
-                            ifelse(input$which_eve_pvals == "meta_P_EA", color_meta_P_EA,
-                            ifelse(input$which_eve_pvals == "meta_P_LAT", color_meta_P_LAT, color_meta_P)))) %>% #color_meta_P is default
-              dplyr::filter(!is.na(color))) #only show those SNPs that HAVE a pval and it is <=0.05 
+          pval_selector <- paste0("color_", input$which_eve_pvals)
+          snp_eve_temp <- snp_eve[which((snp_eve$symbol==curr_gene()) & (!is.na(unlist(snp_eve[,pval_selector, with=FALSE])))),] #with=FALSE to make data.table act like data.frame
+          if (nrow(snp_eve_temp) > 0) {snp_eve_temp} else {data.frame(matrix(nrow = 0, ncol = 0))} #since pval_selector might remove all rows 
           } else {data.frame(matrix(nrow = 0, ncol = 0))}
       }) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
 
@@ -406,8 +410,8 @@ shinyServer(function(input, output, session) {
 
       # EVE SNPs track
       if (nrow(snp_eve_subs) > 0) {
-          
-          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (EVE)", fill = snp_eve_subs$color, group=snp_eve_subs$snp)
+          pval_choice <- reactive({input$which_eve_pvals})  #pval_choice is responsible for dynamically coloring snps based on user selection of population
+          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (EVE)", fill = unlist(snp_eve_subs[, paste0("color_", pval_choice())]), group=snp_eve_subs$snp)
 
           #rough estimate of number of stacks there will be in SNP track - for track scaling
           if (nrow(snp_eve_subs) > 1) {
