@@ -90,9 +90,7 @@ shinyServer(function(input, output, session) {
       else
       {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=tissue_choices,selected=c("BE", "LEC", "NE", "CD4", "CD8", "PBMC", "WBC", "ASM", "BAL", "Lung",
                                                                                               "chALL", "MCF10A-Myc", "MACRO", "U2O", "LCL", "SAE"), inline = TRUE)}})
-  
-  
-  
+
  
   #Asthma
   asthma_choices <- c("Allergic asthma"="allergic_asthma", "Asthma"="asthma", "Asthma and rhinitis"="asthma_and_rhinitis",
