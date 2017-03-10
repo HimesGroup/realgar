@@ -82,7 +82,6 @@ shinyServer(function(input, output, session) {
                         "Nasal epithelium"="NE","Osteosarcoma U2OS cell" = "U2O", 
                         "Peripheral blood mononuclear cell"="PBMC","Small airway epithelium"="SAE",
                         "White blood cell"="WBC","Whole lung"="Lung")
-  
   observe({
       if(input$selectall_tissue == 0) return(NULL) 
       else if (input$selectall_tissue%%2 == 0)
