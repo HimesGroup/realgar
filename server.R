@@ -70,29 +70,61 @@ shinyServer(function(input, output, session) {
     
   GeneSymbol <- reactive({if (curr_gene() %in% genes_avail) {TRUE} else {FALSE}})  #used later to generate error message when a wrong gene symbol is input
   
-  ##############################################
-  ## "Select all" button for tissue selection ##
-  ##############################################
-  checkbox_choices <- c("Airway smooth muscle"="ASM", "Bronchial epithelium"="BE", 
+  #####################################################################
+  ## "Select all" buttons for tissue, asthma and treatment selection ##
+  #####################################################################
+  
+  #Tissue
+  tissue_choices <- c("Airway smooth muscle"="ASM", "Bronchial epithelium"="BE", 
                         "Bronchoalveolar lavage"="BAL", "CD4"="CD4", "CD8"="CD8",
                         "Lens epithelium" = "LEC","Lymphoblastic leukemia cell" = "chALL", 
                         "Lymphoblastoid cell" = "LCL","Macrophage" = "MACRO", "MCF10A-Myc" = "MCF10A-Myc",
                         "Nasal epithelium"="NE","Osteosarcoma U2OS cell" = "U2O", 
                         "Peripheral blood mononuclear cell"="PBMC","Small airway epithelium"="SAE",
                         "White blood cell"="WBC","Whole lung"="Lung")
-
+  
   observe({
-      if(input$selectall == 0) return(NULL) 
-      else if (input$selectall%%2 == 0)
-      {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=checkbox_choices, inline = TRUE)}
+      if(input$selectall_tissue == 0) return(NULL) 
+      else if (input$selectall_tissue%%2 == 0)
+      {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=tissue_choices, inline = TRUE)}
       else
-      {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=checkbox_choices,selected=c("BE", "LEC", "NE", "CD4", "CD8", "PBMC", "WBC", "ASM", "BAL", "Lung",
-                                                                                                 "chALL", "MCF10A-Myc", "MACRO", "U2O", "LCL", "SAE"), inline = TRUE)}})
+      {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=tissue_choices,selected=c("BE", "LEC", "NE", "CD4", "CD8", "PBMC", "WBC", "ASM", "BAL", "Lung",
+                                                                                              "chALL", "MCF10A-Myc", "MACRO", "U2O", "LCL", "SAE"), inline = TRUE)}})
+  
+  
+  
+ 
+  #Asthma
+  asthma_choices <- c("Allergic asthma"="allergic_asthma", "Asthma"="asthma", "Asthma and rhinitis"="asthma_and_rhinitis",
+                              "Fatal asthma"="fatal_asthma", "Mild asthma"="mild_asthma", "Non-allergic asthma"="non_allergic_asthma",
+                              "Non-asthma smoker"="non_asthma_smoker","Severe asthma"="severe_asthma")
+  observe({
+      if(input$selectall_asthma == 0) return(NULL) 
+      else if (input$selectall_asthma%%2 == 0)
+      {updateCheckboxGroupInput(session,"Asthma","Asthma",choices=asthma_choices)}
+      else
+      {updateCheckboxGroupInput(session,"Asthma","Asthma",
+                                choices=asthma_choices,
+                                selected=c("allergic_asthma", "asthma", "asthma_and_rhinitis", "fatal_asthma", "mild_asthma", "non_allergic_asthma", "non_asthma_smoker", "severe_asthma"))}})
+ 
+  
+  #Treatment
+  treatment_choices <- c("Beta-agonist treatment"="BA", "Glucocorticoid treatment" = "GC", "Vitamin D treatment"="vitD")
+  
+  observe({
+      if(input$selectall_treatment == 0) return(NULL) 
+      else if (input$selectall_treatment%%2 == 0)
+      {updateCheckboxGroupInput(session,"Treatment","Treatment",choices=treatment_choices)}
+      else
+      {updateCheckboxGroupInput(session,"Treatment","Treatment",choices=treatment_choices,selected=c("BA", "GC", "vitD"))}})
+  
   
   #########################################
   ## reactive UI for EVE p-value options ##
   #########################################
-  output$eve_incl <- reactive({if("snp_eve_subs" %in% input$which_SNPs) {"GWAS display options:"} else {""}})
+  
+  #if EVE SNPs selected, display option to choose population
+  output$eve_options <- reactive({if("snp_eve_subs" %in% input$which_SNPs) {"GWAS display options:"} else {""}})
   
   #######################
   ## GEO studies table ##
@@ -101,7 +133,7 @@ shinyServer(function(input, output, session) {
   #Jessica's initial app had an "and" condition here; I changed it to "or"
   UserDataset_Info <- reactive({
       Dataset_Info1 = subset(Dataset_Info,(((Dataset_Info$Tissue %in% input$Tissue) | (Dataset_Info$Asthma %in% input$Asthma)) & Dataset_Info$App == "asthma")) 
-      Dataset_Info2 = subset(Dataset_Info, (((Dataset_Info$Tissue %in% input$Tissue) & (Dataset_Info$Asthma %in% input$GC_included)) | Dataset_Info$App %in% input$GC_included))
+      Dataset_Info2 = subset(Dataset_Info, (((Dataset_Info$Tissue %in% input$Tissue) & (Dataset_Info$Asthma %in% input$Treatment)) | Dataset_Info$App %in% input$Treatment))
       Dataset_Info = rbind(Dataset_Info1, Dataset_Info2)}) # this separates GC and asthma data 
   
   #add links for GEO_ID and PMID
@@ -259,11 +291,11 @@ shinyServer(function(input, output, session) {
       #hrzl_lines are borders between rows... made wide enough to be a background
       size_par <- max(6, nrow(data2_Asthma)) #else plot scaling messed up when fewer than 5 datasets selected
       hrzl_lines <- vector("list", nrow(tabletext)+1)
-      # hrzl_lines[[2]] <- gpar(lwd=350/size_par, lineend="butt", columns=5, col="#d3cecc")
+      # hrzl_lines[[2]] <- gpar(lwd=350/size_par, lineend="butt", columns=5, col="#BDB6B0")
       for (i in setdiff(c(3:(length(hrzl_lines)-1)),c(1))) {hrzl_lines[[i]]  <- if(nrow(data2_Asthma)==1) {
-          gpar(lwd=100, lineend="butt", columns=5, col="#d3cecc")
+          gpar(lwd=100, lineend="butt", columns=5, col="#BDB6B0")
       } else {
-          gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#d3cecc")}
+          gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#BDB6B0")}
       }
       hrzl_lines[[1]] <- gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#ffffff")
       hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=150/size_par, lineend="butt", columns=5, col="#ffffff")
@@ -313,11 +345,11 @@ shinyServer(function(input, output, session) {
       #hrzl_lines are borders between rows... made wide enough to be a background
       size_par <- max(6, nrow(data2_GC))
       hrzl_lines <- vector("list", nrow(tabletext)+1)
-      # hrzl_lines[[2]] <- gpar(lwd=350/size_par, lineend="butt", columns=5, col="#d3cecc")
+      # hrzl_lines[[2]] <- gpar(lwd=350/size_par, lineend="butt", columns=5, col="#BDB6B0")
       for (i in setdiff(c(3:(length(hrzl_lines)-1)),c(1))) {hrzl_lines[[i]]  <- if(nrow(data2_GC)==1) {
-          gpar(lwd=100, lineend="butt", columns=5, col="#d3cecc")
+          gpar(lwd=100, lineend="butt", columns=5, col="#BDB6B0")
       } else {
-          gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#d3cecc")}
+          gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#BDB6B0")}
       }
       hrzl_lines[[1]] <- gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#ffffff")
       hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=150/size_par, lineend="butt", columns=5, col="#ffffff")
@@ -467,7 +499,7 @@ shinyServer(function(input, output, session) {
        #note: use names to extract from selected_tracks b/c it is a list vs. index to extract from selected_sizes, since this is numeric
        
        #plot tracks 
-       plotTracks(selected_tracks, sizes=selected_sizes, col=NULL, background.panel = "#d3cecc", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
+       plotTracks(selected_tracks, sizes=selected_sizes, col=NULL, background.panel = "#BDB6B0", background.title = "firebrick4", col.border.title = "firebrick4", groupAnnotation = "group", fontcolor.group = "darkblue", cex.group=0.75, just.group="below", cex.title=1.1)
        
     }
     
@@ -493,7 +525,7 @@ shinyServer(function(input, output, session) {
           snp_eve_subs() %>%
               dplyr::rename(position=start) %>%
               dplyr::mutate(source = "EVE") %>%
-              dplyr::select(-c(end, color_meta_P, color_meta_P_EA, color_meta_P_AA, color_meta_P_LAT, color))
+              dplyr::select(-c(end, color_meta_P, color_meta_P_EA, color_meta_P_AA, color_meta_P_LAT))
       }
   })
   
