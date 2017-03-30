@@ -153,7 +153,8 @@ shinyServer(function(input, output, session) {
   #Jessica's initial app had an "and" condition here; I changed it to "or"
   UserDataset_Info <- reactive({
       Dataset_Info1 = subset(Dataset_Info,(((Dataset_Info$Tissue %in% input$Tissue) | (Dataset_Info$Asthma %in% input$Asthma)) & Dataset_Info$App == "asthma")) 
-      Dataset_Info2 = subset(Dataset_Info, (((Dataset_Info$Tissue %in% input$Tissue) & (Dataset_Info$Asthma %in% input$Treatment)) | Dataset_Info$App %in% input$Treatment))
+      Dataset_Info2 = subset(Dataset_Info,(((Dataset_Info$Tissue %in% input$Tissue) | (Dataset_Info$Asthma %in% input$Treatment)) & Dataset_Info$App == "GC")) 
+      # Dataset_Info2 = subset(Dataset_Info, (((Dataset_Info$Tissue %in% input$Tissue) & ((Dataset_Info$Asthma %in% input$Treatment) | (Dataset_Info$App %in% input$Treatment)))))
       Dataset_Info = rbind(Dataset_Info1, Dataset_Info2)}) # this separates GC and asthma data 
   
   #add links for GEO_ID and PMID
@@ -399,8 +400,8 @@ shinyServer(function(input, output, session) {
   output$color_scale3 <- renderImage({ #need two separate output names - else it fails (can't output same thing twice?)
       return(list(
           src = "databases/www/color_scale_horizontal.png",
-          height=65*1.1,
-          width=971*1.1,
+          height=109*1.05,
+          width=1015*1.05,
           filetype = "image/png",
           alt = "color_scale"))}, deleteFile = FALSE)
   
