@@ -26,21 +26,33 @@ Dataset_Info[is.na(Dataset_Info$PMID), "PMID"] <- ""
 #load info for gene tracks: gene locations, TFBS, SNPs, etc.
 tfbs <-readRDS("databases/tfbs_for_app.RDS") #TFBS data from ENCODE - matched to gene ids using bedtools
 snp <- readRDS("databases/grasp_output_for_app.RDS") #SNP data from GRASP - matched to gene ids using bedtools
-snp_eve <- readRDS("databases/eve_data_realgar.RDS")#SNP data from EVE - lifted over from hg18 to hg19 - matched to gene ids using bedtools 
+snp_eve <- readRDS("databases/eve_data_realgar.RDS") #SNP data from EVE - lifted over from hg18 to hg19 - matched to gene ids using bedtools 
 snp_gabriel <- readRDS("databases/gabriel_data_realgar.RDS") #still have to add #SNP data from GABRIEL - lifted over from hg17 to hg19 - matched to gene ids using bedtools 
 gene_locations <- fread("databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location & transcript data from GENCODE
 chrom_bands <- readRDS("databases/chrom_bands.RDS") #chromosome band info for ideogram - makes ideogram load 25 seconds faster
 #unlike all other files, gene_locations is faster with fread than with readRDS (2s load, vs 4s)
 
+#compute -log10 for SNPs -- used for SNP colors
+snp <- dplyr::mutate(snp, neg_log_p = -log10(p))
+snp_eve <- dplyr::mutate(snp_eve, neg_log_meta_p = -log10(meta_P),
+                         neg_log_meta_p_aa = -log10(meta_P_AA),
+                         neg_log_meta_p_ea = -log10(meta_P_EA),
+                         neg_log_meta_p_lat = -log10(meta_P_LAT))
+snp_gabriel <- dplyr::mutate(snp_gabriel, neg_log_p = -log10(P_ran))
+
 #color tfbs based on binding score - used in tracks
 #create color scheme based on encode binding score & snp p-values
 tfbs$color <- inferno(50)[as.numeric(cut(tfbs$score,breaks = 50))]
-snp$color <- inferno(1024)[as.numeric(cut(-snp$p,breaks = 1024))]
-snp_eve$color_meta_P <- inferno(1024)[as.numeric(cut(-snp_eve$meta_P,breaks = 1024))]
-snp_eve$color_meta_P_AA <- inferno(1024)[as.numeric(cut(-snp_eve$meta_P_AA,breaks = 1024))]
-snp_eve$color_meta_P_EA <- inferno(1024)[as.numeric(cut(-snp_eve$meta_P_EA,breaks = 1024))]
-snp_eve$color_meta_P_LAT <- inferno(1024)[as.numeric(cut(-snp_eve$meta_P_LAT,breaks = 1024))]
-snp_gabriel$color <- inferno(1024)[as.numeric(cut(-snp_gabriel$P_ran,breaks = 1024))]
+
+breaks <- c(seq(0,8,by=0.001), Inf) # this sets max universally at 8 (else highest one OF THE SUBSET would be the max)
+
+snp$color <- inferno(8002)[as.numeric(cut(snp$neg_log_p, breaks = breaks))]
+snp_gabriel$color <- inferno(7002)[as.numeric(cut(snp_gabriel$neg_log_p, breaks = breaks))]
+
+snp_eve$color_meta_P <- inferno(8002)[as.numeric(cut(snp_eve$neg_log_meta_p,breaks = breaks))]
+snp_eve$color_meta_P_AA <- inferno(8002)[as.numeric(cut(snp_eve$neg_log_meta_p_aa,breaks = breaks))]
+snp_eve$color_meta_P_EA <- inferno(8002)[as.numeric(cut(snp_eve$neg_log_meta_p_ea,breaks = breaks))]
+snp_eve$color_meta_P_LAT <- inferno(8002)[as.numeric(cut(snp_eve$neg_log_meta_p_lat,breaks = breaks))]
 
 # make a list of gene symbols in all datasets for checking whether gene symbol entered is valid - used for GeneSymbol later on
 genes_avail <- vector()
@@ -83,37 +95,48 @@ shinyServer(function(input, output, session) {
                         "Peripheral blood mononuclear cell"="PBMC","Small airway epithelium"="SAE",
                         "White blood cell"="WBC","Whole lung"="Lung")
   observe({
-      if(input$selectall_tissue == 0) return(NULL) 
-      else if (input$selectall_tissue%%2 == 0)
-      {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=tissue_choices, inline = TRUE)}
-      else
-      {updateCheckboxGroupInput(session,"Tissue","Tissue",choices=tissue_choices,selected=c("BE", "LEC", "NE", "CD4", "CD8", "PBMC", "WBC", "ASM", "BAL", "Lung",
-                                                                                              "chALL", "MCF10A-Myc", "MACRO", "U2O", "LCL", "SAE"), inline = TRUE)}})
+      if(input$selectall_tissue == 0) return(NULL) # don't do anything if action button has been clicked 0 times
+      else if (input$selectall_tissue%%2 == 0) { # %% means "modulus" - i.e. here you're testing if button has been clicked a multiple of 2 times
+          updateCheckboxGroupInput(session,"Tissue","Tissue",choices=tissue_choices, inline = TRUE)
+          updateActionButton(session, "selectall_tissue", label="Select all") # change action button label based on user input
+          } else { # else is 1, 3, 5 etc.
+          updateCheckboxGroupInput(session,"Tissue","Tissue",choices=tissue_choices,selected=c("BE", "LEC", "NE", "CD4", "CD8", "PBMC", "WBC", "ASM", "BAL", "Lung",
+                                                                                              "chALL", "MCF10A-Myc", "MACRO", "U2O", "LCL", "SAE"), inline = TRUE)
+          updateActionButton(session, "selectall_tissue", label="Unselect all")
+          }
+      })
 
  
   #Asthma
   asthma_choices <- c("Allergic asthma"="allergic_asthma", "Asthma"="asthma", "Asthma and rhinitis"="asthma_and_rhinitis",
                               "Fatal asthma"="fatal_asthma", "Mild asthma"="mild_asthma", "Non-allergic asthma"="non_allergic_asthma",
-                              "Non-asthma smoker"="non_asthma_smoker","Severe asthma"="severe_asthma")
+                              "Severe asthma"="severe_asthma")
   observe({
       if(input$selectall_asthma == 0) return(NULL) 
-      else if (input$selectall_asthma%%2 == 0)
-      {updateCheckboxGroupInput(session,"Asthma","Asthma",choices=asthma_choices)}
-      else
-      {updateCheckboxGroupInput(session,"Asthma","Asthma",
+      else if (input$selectall_asthma%%2 == 0) {
+          updateCheckboxGroupInput(session,"Asthma","Asthma",choices=asthma_choices)
+          updateActionButton(session, "selectall_asthma", label="Select all")
+          } else {
+          updateCheckboxGroupInput(session,"Asthma","Asthma",
                                 choices=asthma_choices,
-                                selected=c("allergic_asthma", "asthma", "asthma_and_rhinitis", "fatal_asthma", "mild_asthma", "non_allergic_asthma", "non_asthma_smoker", "severe_asthma"))}})
+                                selected=c("allergic_asthma", "asthma", "asthma_and_rhinitis", "fatal_asthma", "mild_asthma", "non_allergic_asthma", "severe_asthma"))
+          updateActionButton(session, "selectall_asthma", label="Unselect all")
+          }})
  
   
   #Treatment
-  treatment_choices <- c("Beta-agonist treatment"="BA", "Glucocorticoid treatment" = "GC", "Vitamin D treatment"="vitD")
+  treatment_choices <- c("Beta-agonist treatment"="BA", "Glucocorticoid treatment" = "GC", "Smoking"="smoking", "Vitamin D treatment"="vitD")
   
   observe({
       if(input$selectall_treatment == 0) return(NULL) 
-      else if (input$selectall_treatment%%2 == 0)
-      {updateCheckboxGroupInput(session,"Treatment","Treatment",choices=treatment_choices)}
-      else
-      {updateCheckboxGroupInput(session,"Treatment","Treatment",choices=treatment_choices,selected=c("BA", "GC", "vitD"))}})
+      else if (input$selectall_treatment%%2 == 0) {
+          updateCheckboxGroupInput(session,"Treatment","Treatment",choices=treatment_choices)
+          updateActionButton(session, "selectall_treatment", label="Select all")
+          }
+      else {
+          updateCheckboxGroupInput(session,"Treatment","Treatment",choices=treatment_choices,selected=c("BA", "GC", "smoking","vitD"))
+          updateActionButton(session, "selectall_treatment", label="Unselect all")
+          }})
   
   
   #########################################
@@ -227,7 +250,7 @@ shinyServer(function(input, output, session) {
                                        dplyr::select(`Study ID`, `Comparison`, `P Value`, `Q Value`, `Fold Change(95% CI)`))
   # GC
   data_GC <- reactive({ output.tableforplot_GC = output.tableforplot()
-  output.tableforplot_GC = output.tableforplot_GC[output.tableforplot_GC$App %in% c("GC", "BA", "vitD"),]
+  output.tableforplot_GC = output.tableforplot_GC[output.tableforplot_GC$App %in% c("GC", "BA", "smoking", "vitD"),]
   output.tableforplot_GC[rev(rownames(output.tableforplot_GC)),]})
   
   data2_GC <- reactive({
@@ -362,19 +385,24 @@ shinyServer(function(input, output, session) {
   
   output$color_scale1 <- output$color_scale2 <- renderImage({ #need two separate output names - else it fails (can't output same thing twice?)
       return(list(
-              src = "databases/www/color_scale.png",
+              src = "databases/www/color_scale_vertical.png",
               height=550,
               width=59,
               filetype = "image/png",
-              alt = "color_scale"
-          ))
-
-  }, deleteFile = FALSE)
-  
+              alt = "color_scale"))}, deleteFile = FALSE)
   
   ###############################
   ## Gene, SNP and TFBS tracks ##
   ###############################
+  
+  #horizontal color scale for gene tracks
+  output$color_scale3 <- renderImage({ #need two separate output names - else it fails (can't output same thing twice?)
+      return(list(
+          src = "databases/www/color_scale_horizontal.png",
+          height=65*1.1,
+          width=971*1.1,
+          filetype = "image/png",
+          alt = "color_scale"))}, deleteFile = FALSE)
   
   #filter data for selected gene
   gene_subs <- reactive({
@@ -386,7 +414,7 @@ shinyServer(function(input, output, session) {
       else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
   snp_eve_subs <- reactive({
       if(("snp_eve_subs" %in% input$which_SNPs)) {
-          snp_eve_temp <- snp_eve[which((snp_eve$symbol==curr_gene()) & (!is.na(unlist(snp_eve[,paste0("color_", input$which_eve_pvals), with=FALSE])))),] #with=FALSE to make data.table act like data.frame
+          snp_eve_temp <- snp_eve[which((snp_eve$symbol==curr_gene()) & (!is.na(unlist(snp_eve[,paste0("color_", input$which_eve_pvals)])))),] 
           #need the second filter criterion because otherwise will output snp names & otherwise blank if NA pvalues
           if (nrow(snp_eve_temp) > 0) {snp_eve_temp} else {data.frame(matrix(nrow = 0, ncol = 0))} #since pval_selector might remove all rows 
           } else {data.frame(matrix(nrow = 0, ncol = 0))}
@@ -440,7 +468,7 @@ shinyServer(function(input, output, session) {
       # EVE SNPs track
       if (nrow(snp_eve_subs) > 0) {
           pval_choice <- reactive({input$which_eve_pvals})  #pval_choice is responsible for dynamically coloring snps based on user selection of population
-          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (EVE)", fill = unlist(snp_eve_subs[, paste0("color_", pval_choice()), with=FALSE]), group=snp_eve_subs$snp)
+          snp_eve_track <- Gviz::AnnotationTrack(snp_eve_subs, name="SNPs (EVE)", fill = unlist(snp_eve_subs[, paste0("color_", pval_choice())]), group=snp_eve_subs$snp)
 
           #rough estimate of number of stacks there will be in SNP track - for track scaling
           if (nrow(snp_eve_subs) > 1) {
