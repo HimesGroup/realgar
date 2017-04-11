@@ -47,7 +47,7 @@ tfbs$color <- inferno(50)[as.numeric(cut(tfbs$score,breaks = 50))]
 breaks <- c(seq(0,8,by=0.001), Inf) # this sets max universally at 8 (else highest one OF THE SUBSET would be the max)
 
 snp$color <- inferno(8002)[as.numeric(cut(snp$neg_log_p, breaks = breaks))]
-snp_gabriel$color <- inferno(7002)[as.numeric(cut(snp_gabriel$neg_log_p, breaks = breaks))]
+snp_gabriel$color <- inferno(8002)[as.numeric(cut(snp_gabriel$neg_log_p, breaks = breaks))]
 
 snp_eve$color_meta_P <- inferno(8002)[as.numeric(cut(snp_eve$neg_log_meta_p,breaks = breaks))]
 snp_eve$color_meta_P_AA <- inferno(8002)[as.numeric(cut(snp_eve$neg_log_meta_p_aa,breaks = breaks))]
