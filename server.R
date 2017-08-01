@@ -145,6 +145,16 @@ shinyServer(function(input, output, session) {
   
   #if EVE SNPs selected, display option to choose population
   output$eve_options <- reactive({if("snp_eve_subs" %in% input$which_SNPs) {"GWAS display options:"} else {""}})
+
+  
+  ############################################################
+  ## reactive UI for tissue/asthma type/treatment selection ##
+  ############################################################
+  
+  output$cityControls <- renderUI({
+      cities <- getNearestCities(input$lat, input$long)
+      checkboxGroupInput("cities", "Choose Cities", cities)
+  })
   
   #######################
   ## GEO studies table ##
@@ -199,7 +209,7 @@ shinyServer(function(input, output, session) {
           dplyr::filter(SYMBOL==curr_gene()) %>%
           dplyr::select(logFC, P.Value, adj.P.Val, SD) %>% 
           dplyr::filter(P.Value==min(P.Value)) %>%
-          dplyr::mutate(lower = logFC - 2*SD, upper = logFC + 2*SD)}
+          dplyr::mutate(lower = logFC - 2*SD, upper = logFC + 2*SD)} #note this is SD of logFC
      
   #get data for given gene for each study selected
   for (i in UserDataset_Info()$Unique_ID){
