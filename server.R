@@ -12,7 +12,10 @@ library(lattice)
 library(stringr)
 library(viridis) 
 library(DT) 
-library(Gviz) 
+library(Gviz)
+source("utilities/meta.R")
+source("utilities/comb_pval.R")
+source("utilities/name_convert.R")
 
 # load dataset descriptions
 Dataset_Info <- readRDS("databases/microarray_data_infosheet_R.RDS")
@@ -24,7 +27,7 @@ Dataset_Info$PMID <- as.character(Dataset_Info$PMID) #else next line does not wo
 Dataset_Info[is.na(Dataset_Info$PMID), "PMID"] <- ""
 
 #load info for gene tracks: gene locations, TFBS, SNPs, etc.
-tfbs <-readRDS("databases/tfbs_for_app.RDS") #TFBS data from ENCODE - matched to gene ids using bedtools
+tfbs <- readRDS("databases/tfbs_for_app.RDS") #TFBS data from ENCODE - matched to gene ids using bedtools
 snp <- readRDS("databases/grasp_output_for_app.RDS") #SNP data from GRASP - matched to gene ids using bedtools
 snp_eve <- readRDS("databases/eve_data_realgar.RDS") #SNP data from EVE - lifted over from hg18 to hg19 - matched to gene ids using bedtools 
 snp_gabriel <- readRDS("databases/gabriel_data_realgar.RDS") #still have to add #SNP data from GABRIEL - lifted over from hg17 to hg19 - matched to gene ids using bedtools 
@@ -56,7 +59,10 @@ snp_eve$color_meta_P_LAT <- inferno(8002)[as.numeric(cut(snp_eve$neg_log_meta_p_
 
 # make a list of gene symbols in all datasets for checking whether gene symbol entered is valid - used for GeneSymbol later on
 genes_avail <- vector()
-for (i in ls()[grep("GSE", ls())]) {genes_avail <- unique(c(genes_avail, get(i)$SYMBOL))}
+for (i in ls()[grep("GSE", ls())]) {
+  gene_names <- as.character(levels(get(i)$SYMBOL))
+  genes_avail <- unique(c(genes_avail, gene_names))
+}
 
 output.table <- data.frame() # initiate output table - used later in output.tableforplot()
 heatmap_colors <-  inferno # heatmap colors - used in p-value plot
@@ -81,7 +87,7 @@ shinyServer(function(input, output, session) {
       }) 
     
   GeneSymbol <- reactive({if (curr_gene() %in% genes_avail) {TRUE} else {FALSE}})  #used later to generate error message when a wrong gene symbol is input
-  
+
   #####################################################################
   ## "Select all" buttons for tissue, asthma and treatment selection ##
   #####################################################################
@@ -138,35 +144,81 @@ shinyServer(function(input, output, session) {
           updateActionButton(session, "selectall_treatment", label="Unselect all")
           }})
   
-  
   #########################################
   ## reactive UI for EVE p-value options ##
   #########################################
   
   #if EVE SNPs selected, display option to choose population
   output$eve_options <- reactive({if("snp_eve_subs" %in% input$which_SNPs) {"GWAS display options:"} else {""}})
-
-  
-  ############################################################
-  ## reactive UI for tissue/asthma type/treatment selection ##
-  ############################################################
-  
-  output$cityControls <- renderUI({
-      cities <- getNearestCities(input$lat, input$long)
-      checkboxGroupInput("cities", "Choose Cities", cities)
-  })
   
   #######################
   ## GEO studies table ##
   #######################
   #select GEO studies matching desired conditions;
   #Jessica's initial app had an "and" condition here; I changed it to "or"
+  # Mengyuan changed it to: if only select tissue or asthma/treatment, will use all the available studies; else use the intersection
   UserDataset_Info <- reactive({
-      Dataset_Info1 = subset(Dataset_Info,(((Dataset_Info$Tissue %in% input$Tissue) | (Dataset_Info$Asthma %in% input$Asthma)) & Dataset_Info$App == "asthma")) 
-      Dataset_Info2 = subset(Dataset_Info,(((Dataset_Info$Tissue %in% input$Tissue) | (Dataset_Info$Asthma %in% input$Treatment)) & Dataset_Info$App == "GC")) 
-      # Dataset_Info2 = subset(Dataset_Info, (((Dataset_Info$Tissue %in% input$Tissue) & ((Dataset_Info$Asthma %in% input$Treatment) | (Dataset_Info$App %in% input$Treatment)))))
-      Dataset_Info = rbind(Dataset_Info1, Dataset_Info2)}) # this separates GC and asthma data 
-  
+      #Dataset_Info1 = subset(Dataset_Info,(((Dataset_Info$Tissue %in% input$Tissue) | (Dataset_Info$Asthma %in% input$Asthma)) & Dataset_Info$App == "asthma")) 
+      #Dataset_Info2 = subset(Dataset_Info,(((Dataset_Info$Tissue %in% input$Tissue) | (Dataset_Info$Asthma %in% input$Treatment)) & Dataset_Info$App == "GC")) 
+      ## Dataset_Info2 = subset(Dataset_Info, (((Dataset_Info$Tissue %in% input$Tissue) & ((Dataset_Info$Asthma %in% input$Treatment) | (Dataset_Info$App %in% input$Treatment)))))
+      #Dataset_Info = rbind(Dataset_Info1, Dataset_Info2) # this separates GC and asthma data
+      Dataset_Info_Tissue = subset(Dataset_Info, Dataset_Info$Tissue %in% input$Tissue)
+      Dataset_Info_Asthma = subset(Dataset_Info, Dataset_Info$Asthma %in% input$Asthma | Dataset_Info$Asthma %in% input$Treatment)
+      if ((nrow(Dataset_Info_Tissue)==0)|(nrow(Dataset_Info_Asthma)==0)) {Dataset_Info1=rbind(Dataset_Info_Tissue,Dataset_Info_Asthma)}
+      else {Dataset_Info1=subset(Dataset_Info_Tissue,Dataset_Info_Tissue$Unique_ID%in%Dataset_Info_Asthma$Unique_ID)}
+      Dataset_Info1
+  })
+
+  # print out further available options based on the current selected items
+
+  avail_text <- reactive({
+      UserDataset_Info <- UserDataset_Info()
+      avail_asthma <- NULL
+      avail_GC <- NULL
+      avail_tissue <- NULL
+      convname_func <- function(x){
+        sort(sapply(as.character(x),function(x){nameconvert(x)}))
+      }
+      if (is.null(input$Tissue)&is.null(input$Asthma)&is.null(input$Treatment)) {text="Please select at least one data type"}
+      else if (is.null(input$Tissue)&(!(is.null(input$Asthma)&is.null(input$Treatment)))) {
+          avail_tissue=unique(Dataset_Info$Tissue[Dataset_Info$Asthma %in% input$Asthma|Dataset_Info$Asthma %in% input$Treatment])
+          avail_tissue_fullname <- convname_func(avail_tissue)
+	  text=paste0("Based on the asthma endotype(s) and/or treatment(s) selected, these tissue(s) are available: ", paste(avail_tissue_fullname,collapse=", "),".")
+      }
+      else if ((!is.null(input$Tissue))&(is.null(input$Asthma)|is.null(input$Treatment))) {
+          avail_asthma=unique(Dataset_Info$Asthma[(Dataset_Info$Tissue %in% input$Tissue)&(Dataset_Info$App == "asthma")])
+          avail_GC=unique(Dataset_Info$Asthma[(Dataset_Info$Tissue %in% input$Tissue)&(Dataset_Info$App == "GC")])
+	  if (length(avail_asthma)>0) {avail_asthma_fullname <- convname_func(avail_asthma)} else {avail_asthma_fullname<-NULL}
+	  if (length(avail_GC)>0) {avail_GC_fullname <- convname_func(avail_GC)} else {avail_GC_fullname <- NULL}
+	  text=paste0("Based on the tissue(s) selected, these asthma endotype(s) and/or treatment(s) are available: ", paste(c(avail_asthma_fullname,avail_GC_fullname),collapse=", "),".")
+      } else { # specific tissue(s), asthma type(s) and treatment(s) have been selected
+          text=""
+      }
+      text})
+  output$avail_choice = renderText(avail_text())
+
+  # disable the notavailable function
+#  notavail_text <- reactive({
+#      UserDataset_Info <- UserDataset_Info()
+#      if (!is.null(input$Tissue)&(!is.null(input$Asthma)|!is.null(input$Treatment))) {
+#          not_avail_tissue <- input$Tissue[!input$Tissue%in%UserDataset_Info$Tissue]
+#          asthma_GC <- c(input$Asthma, input$Treatment)
+#          not_avail_asthma_GC <-asthma_GC[!asthma_GC%in%UserDataset_Info$Asthma]
+#	  if (length(not_avail_tissue)>0) {
+#	      not_avail_tissue_fullname <- sapply(not_avail_tissue,function(x){nameconvert(x)})
+#	      text_tissue <- paste0("These tissue(s) are not available in selected asthma type(s) and/or treatment(s): ",paste(not_avail_tissue_fullname,collapse=", "),". ")
+#	  } else {text_tissue <- ""}
+#	  if (length(not_avail_asthma_GC)>0) {
+#	      not_avail_asthma_GC_fullname <- sapply(not_avail_asthma_GC,function(x){nameconvert(x)})
+#	      text_asthma_GC <- paste0("These asthma type(s) and/or treatment(s) are not available in selected tissue(s): ",paste(not_avail_asthma_GC_fullname,collapse=", "),".")
+#	  } else {text_asthma_GC <- ""}
+#	  text=paste0(text_tissue,text_asthma_GC)
+#      } else {text=""}
+#      text})
+  notavail_text <- reactive({text=""})
+  output$notavail_choice = renderText(notavail_text())
+
+
   #add links for GEO_ID and PMID
   GEO_data <- reactive({
       validate(need(nrow(UserDataset_Info()) != 0, "Please choose at least one dataset.")) #Generate a error message when no data is loaded.
@@ -193,7 +245,6 @@ shinyServer(function(input, output, session) {
                                                      rownames = FALSE, 
                                                      options = list(paging = FALSE, searching = FALSE),
                                                      escape=FALSE)
-  
   #########################################
   ## Select GEO data for plots and table ##
   #########################################
@@ -205,15 +256,17 @@ shinyServer(function(input, output, session) {
       
   #select data for the gene currently selected
   data_filter <- function(x){
-      x %>%
+      x <- x %>%
           dplyr::filter(SYMBOL==curr_gene()) %>%
           dplyr::select(logFC, P.Value, adj.P.Val, SD) %>% 
           dplyr::filter(P.Value==min(P.Value)) %>%
-          dplyr::mutate(lower = logFC - 2*SD, upper = logFC + 2*SD)} #note this is SD of logFC
+          dplyr::mutate(lower = logFC - 2*SD, upper = logFC + 2*SD)
+  }
      
   #get data for given gene for each study selected
   for (i in UserDataset_Info()$Unique_ID){
-      curr.gene.data=get(i,environment()) 
+      curr.gene.data=get(i,environment())
+      Total = UserDataset_Info() %>% dplyr::filter(Unique_ID == i) %>% select(Total) # This 'Total' is total sample size and can be used to combine p-values
       data_type = UserDataset_Info() %>% dplyr::filter(Unique_ID == i) %>% select(App) #This 'data_type' can be used to separate asthma and GC data. 
           
     if(any(tbl_vars(curr.gene.data)=="qValuesBatch")) {
@@ -228,58 +281,156 @@ shinyServer(function(input, output, session) {
         curr.gene.data <- data_filter(curr.gene.data)
         
         if(nrow(curr.gene.data) > 0) {
-            curr.gene.data <- cbind(data_type, Unique_ID=i, curr.gene.data)
+	    curr.gene.data <- curr.gene.data[order(curr.gene.data$P.Value,-abs(curr.gene.data$logFC)),][1,] # if multiple probes have the same smallest p-values, select the one with largest effect
+            curr.gene.data <- cbind(data_type, Unique_ID=i, curr.gene.data, Total)
             #append curr.gene.data to all the other data that needs to be included in the levelplots
             output.table <- rbind(output.table, curr.gene.data)}}}
-  
+
     #preparing the data for levelplots
     #calculate the fold change, order by fold change for levelplots
   validate(need(GeneSymbol() != FALSE, "Please enter a valid gene symbol or SNP ID.")) # Generate error message if the gene symbol is not right.
   output.table <- dplyr::mutate(output.table, Fold_Change=2^(logFC), neglogofP=(-log10(adj.P.Val)), Lower_bound_CI = 2^(lower), Upper_bound_CI = 2^(upper)) #note that this is taking -log10 of adjusted p-value
   # row.names(output.table) <- output.table$Unique_ID #crucial for plot labels on levelplot
-  output.table <- output.table[order(output.table$Fold_Change, output.table$Upper_bound_CI),]})
-  
+  output.table <- output.table[order(output.table$Fold_Change, output.table$Upper_bound_CI),]
+  #print(output.table)
+  })
 
-  ###################################
-  ## Data table accompanying plots ##
-  ###################################
   
+  ###################################
+  ## Data table for meta-analysis  ##
+  ###################################
+
   # asthma
   data_Asthma <- reactive({ output.tableforplot_asthma = output.tableforplot() 
   output.tableforplot_asthma = output.tableforplot_asthma[output.tableforplot_asthma$App == "asthma",]
   output.tableforplot_asthma[rev(rownames(output.tableforplot_asthma)),]})
+
+  # GC
+  data_GC <- reactive({ output.tableforplot_GC = output.tableforplot()
+  output.tableforplot_GC = output.tableforplot_GC[output.tableforplot_GC$App %in% c("GC", "BA", "smoking", "vitD"),]
+  output.tableforplot_GC[rev(rownames(output.tableforplot_GC)),]})
+  ###################################
+  ##        Combined p-values      ##
+  ###################################
   
+  # asthma
+  asthma_pcomb <- reactive({
+      dat <- data_Asthma()
+      if (length(dat$adj.P.Val)>1) {
+	  #write.table(dat,paste0("Asthma_",curr_gene(),".txt"),col.names=T,row.names=F,sep="\t",quote=F)
+          asthma_liptak_pcomb <- liptak_stat(dat)
+          asthma_sumlog_pcomb <- sumlog_stat(dat)
+	  pcomb_text=paste0("Combined p-values by Liptak's method =", asthma_liptak_pcomb, "; by Fisher's method = ", asthma_sumlog_pcomb)
+      }
+      else {pcomb_text=""}
+      pcomb_text
+  })
+
+  output$asthma_pcomb_text <- renderText({asthma_pcomb()})
+
+  # GC
+  GC_pcomb <- reactive({
+      dat <- data_GC()
+      if (length(dat$adj.P.Val)>1) {
+	  #write.table(dat,paste0("GC_",curr_gene(),".txt"),col.names=T,row.names=F,sep="\t",quote=F)
+          GC_liptak_pcomb <- liptak_stat(dat)
+          GC_sumlog_pcomb <- sumlog_stat(dat)
+	  pcomb_text=paste0("Combined p-values by Liptak's method =", GC_liptak_pcomb, "; by Fisher's method = ", GC_sumlog_pcomb)
+      }
+      else {pcomb_text=""}
+      pcomb_text
+  })
+
+  output$GC_pcomb_text <- renderText({GC_pcomb()})
+  ###################################
+  ##          Meta-analysis        ##
+  ###################################
+  
+  # p-values, effect size and 95% CI will be used for forestplot
+  # asthma
+  meta_Asthma <- reactive({
+      dat <- data_Asthma()
+      if (length(dat$adj.P.Val)>1) {
+          res <- meta_stat(dat)
+      }
+      else {res <- list(meta_pval=1,meta_fc=1,meta_lower=1,meta_upper=1)} # assign any values to trick the app if no "treatment" is selected
+      res
+  })  
+
+  meta_GC <- reactive({
+      dat <- data_GC()
+      if (length(dat$adj.P.Val)>1) {
+          res <- meta_stat(dat)
+      }
+      else {res <- list(meta_pval=NA,meta_fc=NA,meta_lower=NA,meta_upper=NA)}
+      res
+  })  
+
+  ###################################
+  ## Data table accompanying plots ##
+  ###################################
+
+  # asthma
+
   data2_Asthma <- reactive({
       data_Asthma()%>%
           dplyr::select(Unique_ID, adj.P.Val, P.Value,Fold_Change, neglogofP, Lower_bound_CI, Upper_bound_CI) %>%
           dplyr::mutate(Fold_Change=round(Fold_Change,digits=2),adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), P.Value =format(P.Value, scientific=TRUE, digits=3), 
                         Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2), Comparison = "Asthma vs. non-asthma")%>%
           dplyr::rename(`Study ID`=Unique_ID, `P Value`=P.Value, `Q Value`=adj.P.Val, `Fold Change`=Fold_Change)})
-  
-  tableforgraph_Asthma <- reactive(data2_Asthma()%>% 
-                                       dplyr::mutate(`Fold Change(95% CI)` = paste(`Fold Change`, " ","(", Lower_bound_CI, ",", Upper_bound_CI, ")", sep = "")) %>%
-                                       dplyr::select(`Study ID`, `Comparison`, `P Value`, `Q Value`, `Fold Change(95% CI)`))
+
+  tableforgraph_Asthma <- reactive({
+      # add meta-analysis results
+      meta_Asthma = meta_Asthma()
+      meta_pval=format(meta_Asthma[["meta_pval"]],scientific=TRUE, digits=3)
+      meta_fc=round(meta_Asthma[["meta_fc"]],2)
+      meta_lower=round(meta_Asthma[["meta_lower"]],2)
+      meta_upper=round(meta_Asthma[["meta_upper"]],2)
+
+      data3_Asthma <- data2_Asthma()%>% 
+          dplyr::mutate(`Fold Change(95% CI)` = paste(`Fold Change`, " ","(", Lower_bound_CI, ",", Upper_bound_CI, ")", sep = "")) %>%
+          dplyr::select(`Study ID`, `Comparison`, `P Value`, `Q Value`, `Fold Change(95% CI)`)
+
+      if (nrow(data3_Asthma)>1) {
+      data3_Asthma() %>%
+          mutate_all(as.character) %>%
+          rbind(c("Combined asthma studies","-","-",meta_pval,paste(meta_fc," (",meta_lower,",",meta_upper,")")))}
+      else {data3_Asthma()}})
+
   # GC
-  data_GC <- reactive({ output.tableforplot_GC = output.tableforplot()
-  output.tableforplot_GC = output.tableforplot_GC[output.tableforplot_GC$App %in% c("GC", "BA", "smoking", "vitD"),]
-  output.tableforplot_GC[rev(rownames(output.tableforplot_GC)),]})
-  
   data2_GC <- reactive({
       data_GC()%>%
-          dplyr::select(Unique_ID, adj.P.Val, P.Value, Fold_Change, neglogofP, Lower_bound_CI, Upper_bound_CI) %>%
+          dplyr::select(Unique_ID, adj.P.Val, P.Value,Fold_Change, neglogofP, Lower_bound_CI, Upper_bound_CI) %>%
           dplyr::mutate(Fold_Change=round(Fold_Change,digits=2),adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), P.Value =format(P.Value, scientific=TRUE, digits=3), 
-                 Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2), Comparison = "Glucocorticoid vs. control")%>%
+                        Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2), Comparison = "Asthma vs. non-asthma")%>%
           dplyr::rename(`Study ID`=Unique_ID, `P Value`=P.Value, `Q Value`=adj.P.Val, `Fold Change`=Fold_Change)})
-  
-  tableforgraph_GC <- reactive(data2_GC()%>% 
-                                   dplyr::mutate(`Fold Change(95% CI)` = paste(`Fold Change`, " ","(", Lower_bound_CI, ",", Upper_bound_CI, ")", sep = "")) %>%
-                                   dplyr::select(`Study ID`, `Comparison`, `P Value`, `Q Value`, `Fold Change(95% CI)`))
+
+  tableforgraph_GC <- reactive({
+      # add meta-analysis results
+      meta_GC = meta_GC()
+      meta_pval=format(meta_GC[["meta_pval"]],scientific=TRUE, digits=3)
+      meta_fc=round(meta_GC[["meta_fc"]],2)
+      meta_lower=round(meta_GC[["meta_lower"]],2)
+      meta_upper=round(meta_GC[["meta_upper"]],2)
+
+      data3_GC <- data2_GC()%>% 
+          dplyr::mutate(`Fold Change(95% CI)` = paste(`Fold Change`, " ","(", Lower_bound_CI, ",", Upper_bound_CI, ")", sep = "")) %>%
+          dplyr::select(`Study ID`, `Comparison`, `P Value`, `Q Value`, `Fold Change(95% CI)`) 
+      
+      if (nrow(data3_GC)>1) {
+      data3_GC() %>%
+          mutate_all(as.character) %>%
+          rbind(c("Combined asthma studies","-","-",meta_pval,paste(meta_fc," (",meta_lower,",",meta_upper,")")))}
+      else {data3_GC()}})
+
   #combine asthma & GC into one
   output$tableforgraph <- DT::renderDataTable(rbind(tableforgraph_Asthma(), tableforgraph_GC()),
                                                  class = 'cell-border stripe', 
                                                  rownames = FALSE, 
                                                  options = list(paging = FALSE, searching = FALSE),
                                                  width = "100%")
+
+
   #################
   ## Forestplots ##
   #################
@@ -288,9 +439,25 @@ shinyServer(function(input, output, session) {
   forestplot_asthma <- function() {
       
       data2_Asthma = data2_Asthma()
-          
       validate(need(nrow(data2_Asthma) != 0, "Please choose a dataset.")) 
-      
+
+      if (nrow(data2_Asthma)>1) {
+          # add meta-analysis results
+          meta_Asthma = meta_Asthma()
+          meta_pval=format(meta_Asthma[["meta_pval"]],scientific=TRUE, digits=3)
+          meta_fc=round(meta_Asthma[["meta_fc"]],2)
+          meta_lower=round(meta_Asthma[["meta_lower"]],2)
+          meta_upper=round(meta_Asthma[["meta_upper"]],2)
+          meta_neglogofP=-log10(meta_Asthma[["meta_pval"]])
+          
+          data2_Asthma <- rbind(data2_Asthma,rep(NA,ncol(data2_Asthma)))
+          data2_Asthma$`Q Value`[nrow(data2_Asthma)] <- meta_pval
+          data2_Asthma$`Fold Change`[nrow(data2_Asthma)] <- meta_fc
+          data2_Asthma$Lower_bound_CI[nrow(data2_Asthma)] <- meta_lower
+          data2_Asthma$Upper_bound_CI[nrow(data2_Asthma)] <- meta_upper
+          data2_Asthma$neglogofP[nrow(data2_Asthma)] <- meta_neglogofP
+      }
+
       # function to color forestplot lines and boxes by -log10 of adjusted pvalue - always relative to the max of 8
       color_fn <- local({
           i <- 0
@@ -303,21 +470,28 @@ shinyServer(function(input, output, session) {
           }
       })
       
-      text_asthma = data2_Asthma$`Study ID`
+      text_asthma = data2_Asthma$`Study ID` # seems not a useful variable
       
       xticks = seq(from = min(0.9, min(data2_Asthma$Lower_bound_CI)), to = max(max(data2_Asthma$Upper_bound_CI),1.2), length.out = 5)
    
       tabletext <- matrix(nrow=1, ncol=4)
       tabletext[1,] <- c("GEO ID", "Tissue", "Endotype", "Q Value")
-      text_temp <- merge(data2_Asthma, as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_Asthma$`Study ID`),]), by.x="Study ID", by.y="Unique_ID")
+      if (nrow(data2_Asthma)>1) {
+          text_temp <- merge(data2_Asthma[-nrow(data2_Asthma),], as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_Asthma$`Study ID`),]), by.x="Study ID", by.y="Unique_ID") # merge exclude last row with meta-analysis results
+      } else {
+	      text_temp <- merge(data2_Asthma, as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_Asthma$`Study ID`),]), by.x="Study ID", by.y="Unique_ID")
+      }
       text_temp <- text_temp[order(-text_temp$`Fold Change`, -text_temp$Upper_bound_CI),]
-      text_temp <- text_temp[,c(9,19,12,2)]
+      text_temp <- text_temp[,c("GEO_ID","Long_tissue_name","Asthma","Q Value", "Total")] # include total sample size
       text_temp[,2] <- gsub(" cells", "", text_temp[,2])
       text_temp[,3] <- gsub("_", " ", text_temp[,3])
-      colnames(tabletext) <- colnames(text_temp)
-      tabletext <- rbind(tabletext,text_temp)
+      colnames(tabletext) <- colnames(text_temp[,1:4])
+      tabletext <- rbind(tabletext,text_temp[,1:4]) #
       options(useFancyQuotes = FALSE)
       tabletext <- gsub('"', '', sapply(tabletext, dQuote))
+      if (nrow(data2_Asthma)>1) {
+          tabletext <- rbind(tabletext,c("Combined asthma studies", "", "", meta_pval))
+      }
       
       #hrzl_lines are borders between rows... made wide enough to be a background
       size_par <- max(6, nrow(data2_Asthma)) #else plot scaling messed up when fewer than 5 datasets selected
@@ -330,10 +504,18 @@ shinyServer(function(input, output, session) {
       }
       hrzl_lines[[1]] <- gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#ffffff")
       hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=150/size_par, lineend="butt", columns=5, col="#ffffff")
+
+      tableplot <- rbind(c(NA,NA,NA,NA),data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")])
       
-      
-      forestplot(tabletext, title = "Asthma vs. Non-asthma", rbind(c(NA,NA,NA,NA),data2_Asthma[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]), zero = 1, 
-                 xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2, 
+      # adjust dot size based on sample size
+      if (nrow(data2_Asthma)>1) {
+          nsamp <- as.numeric(as.character(text_temp$Total))
+          total <- c(nsamp,sum(nsamp))
+          boxsize=c(0,0.1*log10(total)) # 0 for the header line
+      } else {boxsize=0.2} # boxsize = 0.2 default
+
+      forestplot(tabletext, title = "Asthma vs. Non-asthma", tableplot, zero = 1, 
+                 xlab = "Fold Change",boxsize = boxsize, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2, 
                  xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_Asthma))), lineheight = unit(19.7/size_par, "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
                  txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)),
                  hrzl_lines=hrzl_lines)
@@ -345,6 +527,23 @@ shinyServer(function(input, output, session) {
       data2_GC = data2_GC()
       validate(need(nrow(data2_GC) != 0, "Please choose a dataset."))
       
+      if (nrow(data2_GC)>1) { 
+          # add meta-analysis results
+          meta_GC = meta_GC()
+          meta_pval=format(meta_GC[["meta_pval"]],scientific=TRUE, digits=3)
+          meta_fc=round(meta_GC[["meta_fc"]],2)
+          meta_lower=round(meta_GC[["meta_lower"]],2)
+          meta_upper=round(meta_GC[["meta_upper"]],2)
+          meta_neglogofP=-log10(meta_GC[["meta_pval"]])
+          
+          data2_GC <- rbind(data2_GC,rep(NA,ncol(data2_GC)))
+          data2_GC$`Q Value`[nrow(data2_GC)] <- meta_pval
+          data2_GC$`Fold Change`[nrow(data2_GC)] <- meta_fc
+          data2_GC$Lower_bound_CI[nrow(data2_GC)] <- meta_lower
+          data2_GC$Upper_bound_CI[nrow(data2_GC)] <- meta_upper
+          data2_GC$neglogofP[nrow(data2_GC)] <- meta_neglogofP
+      }
+   
       # function to color forestplot lines and boxes by -log10 of adjusted pvalue - always relative to the max of 8
       color_fn <- local({
           i <- 0
@@ -363,15 +562,20 @@ shinyServer(function(input, output, session) {
 
       tabletext <- matrix(nrow=1, ncol=4)
       tabletext[1,] <- c("GEO ID", "Tissue", "Treatment", "Q Value")
-      text_temp <- merge(data2_GC, as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_GC$`Study ID`),]), by.x="Study ID", by.y="Unique_ID")
+      if (nrow(data2_GC)>1) {
+          text_temp <- merge(data2_GC[-nrow(data2_GC),], as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_GC$`Study ID`),]), by.x="Study ID", by.y="Unique_ID")
+      } else {text_temp <- merge(data2_GC, as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% data2_GC$`Study ID`),]), by.x="Study ID", by.y="Unique_ID")}
       text_temp <- text_temp[order(-text_temp$`Fold Change`, -text_temp$Upper_bound_CI),]
-      text_temp <- text_temp[,c(9,19,14,2)]
+      text_temp <- text_temp[,c("GEO_ID","Long_tissue_name","Treatment","Q Value", "Total")] # include total sample size, previously: text_temp[,c(9,19,14,2)]
       text_temp[,2] <- gsub(" cells", "", text_temp[,2])
       text_temp[,3] <- gsub("_", " ", text_temp[,3])
-      colnames(tabletext) <- colnames(text_temp)
-      tabletext <- rbind(tabletext,text_temp)
+      colnames(tabletext) <- colnames(text_temp[1:4])
+      tabletext <- rbind(tabletext,text_temp[1:4])
       options(useFancyQuotes = FALSE)
       tabletext <- gsub('"', '', sapply(tabletext, dQuote))
+      if (nrow(data2_GC)>1) {
+          tabletext <- rbind(tabletext,c("Combined treatment studies", "", "", meta_pval))
+      }
 
       #hrzl_lines are borders between rows... made wide enough to be a background
       size_par <- max(6, nrow(data2_GC))
@@ -384,9 +588,16 @@ shinyServer(function(input, output, session) {
       }
       hrzl_lines[[1]] <- gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#ffffff")
       hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=150/size_par, lineend="butt", columns=5, col="#ffffff")
-      
+
+      # adjust dot size based on sample size
+      if (nrow(data2_GC)>1) {
+          nsamp <- as.numeric(as.character(text_temp$Total))
+          total <- c(nsamp,sum(nsamp))
+          boxsize=c(0,0.1*log10(total)) # 0 for the header line
+      } else {boxsize=0.2} # boxsize = 0.2 default
+
       forestplot(tabletext, title = "Treatment vs. Control", rbind(c(NA,NA,NA,NA),data2_GC[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")]) ,zero = 1, 
-                 xlab = "Fold Change",boxsize = 0.2, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2,
+                 xlab = "Fold Change",boxsize = boxsize, col = fpColors(lines = "navyblue", box = "royalblue", zero = "black"), lwd.ci = 2,
                  xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(data2_GC))), lineheight = unit(19.7/size_par, "cm"),mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
                  txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)),
                  hrzl_lines=hrzl_lines)}
@@ -401,7 +612,8 @@ shinyServer(function(input, output, session) {
               width=59,
               filetype = "image/png",
               alt = "color_scale"))}, deleteFile = FALSE)
-  
+
+
   ###############################
   ## Gene, SNP and TFBS tracks ##
   ###############################
