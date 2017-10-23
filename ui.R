@@ -57,7 +57,9 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                                                                                                                selectInput("which_eve_pvals", "Which EVE p-values to use?", 
                                                                                                                            list("All subjects"="meta_P", "African American"="meta_P_AA", "European American"="meta_P_EA", "Latino"="meta_P_LAT"), 
                                                                                                                            selected="meta_P"))), align="left")),
-                                                  hr()), 
+                                                  hr()),
+						 fluidRow(column(12, textOutput("avail_choice"), align="left")),
+						 fluidRow(column(12, textOutput("notavail_choice"), align="left"),hr()),
                                            fluidRow(column(12, h4(strong("Data download:")),align = "left")),
                                            fluidRow(column(12, h5("The results displayed in the forest plots and gene tracks below may also be downloaded directly here:"))), br(),
                                            fluidRow(column(6, downloadButton(outputId="table_download", label="Download fold change and p-value results displayed in forest plots below"), align="left"),
@@ -67,11 +69,13 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                                   fluidRow(br(),
                                            column(10, plotOutput(outputId="forestplot_asthma",width="935px", height="650px"), align="left"), 
                                            div(style="margin-top: 45px", column(2, imageOutput("color_scale1"), align="right")), # margin-top needed to align color scale w/ forest plot
+					   column(12, textOutput("asthma_pcomb_text"), align="left"), # output combined p-values
                                            column(12, downloadButton(outputId="asthma_fc_download",label="Download asthma forest plot"), align="center"), 
                                            column(10, conditionalPanel(condition = "input.Treatment != ''", br(), br(), plotOutput(outputId="forestplot_GC",width="935px", height="650px")),align="left"),
                                            column(2, div(style="margin-top: 80px", conditionalPanel(condition = "input.Treatment != ''", imageOutput("color_scale2")), align="right")), # margin-top needed to align color scale w/ forest plot
+					   column(12, textOutput("GC_pcomb_text"), align="left"), # output combined p-values
                                            column(12, conditionalPanel(condition = "input.Treatment != ''", downloadButton(outputId="GC_fc_download",label="Download GC forest plot")), align="center"),
-                                           column(12, conditionalPanel(condition = "input.Treatment != ''", h5("Alb=Albuterol; Dex=Dexamethasone")), align="right")), br(), hr(), width = 12,
+					   column(12, conditionalPanel(condition = "input.Treatment != ''", h5("Alb=Albuterol; Dex=Dexamethasone")), align="right")), br(), hr(), width = 12,
                                   
                                   fluidRow(column(12, p("Transcripts for the selected gene are displayed here. ",
                                                         "Any SNPs and/or GR binding sites that fall within the gene ",
