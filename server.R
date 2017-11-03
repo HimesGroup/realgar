@@ -68,7 +68,7 @@ output.table <- data.frame() # initiate output table - used later in output.tabl
 heatmap_colors <-  inferno # heatmap colors - used in p-value plot
 
 # server
-shinyServer(function(input, output, session) {
+server <- shinyServer(function(input, output, session) {
     
     curr_gene <- reactive({
         if (gsub(" ", "", tolower(input$curr_gene), fixed=TRUE) %in% c(snp$snp, snp_eve$snp, snp_gabriel$snp)) { #if SNP ID is entered, convert internally to nearest gene symbol  
@@ -375,16 +375,16 @@ shinyServer(function(input, output, session) {
     data2_Asthma <- reactive({ # dataset without meta-analysis results
         data_Asthma()%>%
             dplyr::select(Unique_ID, adj.P.Val, P.Value,Fold_Change, neglogofP, Lower_bound_CI, Upper_bound_CI) %>%
-	    arrange(desc(Fold_Change),desc(Upper_bound_CI)) %>% # sort by first effect size (fold change) and then by upper CI in a descending order
+            arrange(desc(Fold_Change),desc(Upper_bound_CI)) %>% # sort by first effect size (fold change) and then by upper CI in a descending order
             dplyr::mutate(Fold_Change=round(Fold_Change,digits=2),adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), P.Value =format(P.Value, scientific=TRUE, digits=3), 
                           Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2), Comparison = "Asthma vs. non-asthma")%>%
             dplyr::rename(`Study ID`=Unique_ID, `P Value`=P.Value, `Q Value`=adj.P.Val, `Fold Change`=Fold_Change)})
-
+    
     # Function: "interdata_func"
     # obtain intermediate data with meta-analysis results added for table output and forest plots
     interdata_func <- function(dat,meta_dat){
-    	if (nrow(dat)==0) {return(data.frame())} # define an empty dataset if nothing is selected
-	# add meta-analysis results if more than one study were observed
+        if (nrow(dat)==0) {return(data.frame())} # define an empty dataset if nothing is selected
+        # add meta-analysis results if more than one study were observed
         if (nrow(dat)>1) {
             meta_pval=format(meta_dat[["meta_pval"]],scientific=TRUE, digits=3)
             meta_fc=round(meta_dat[["meta_fc"]],2)
@@ -399,53 +399,53 @@ shinyServer(function(input, output, session) {
             dat$Upper_bound_CI[nrow(dat)] <- meta_upper
             dat$neglogofP[nrow(dat)] <- meta_neglogofP
         }
-	
-	# merge information from info sheet
+        
+        # merge information from info sheet
         text_temp <- merge(dat, as.matrix(Dataset_Info[which(Dataset_Info$Unique_ID %in% dat$`Study ID`),]), by.x="Study ID", by.y="Unique_ID", all.x=T)
         
-	# sort by effect size (fold change) by individual study as the order changes after merging
-	if (nrow(text_temp)>1) {
-	    meta_row <- text_temp[nrow(text_temp),]
-	    study_row <- text_temp[1:(nrow(text_temp)-1),] # sort exclude the meta-analysis result
-	    study_row <- study_row[order(-study_row$`Fold Change`, -study_row$Upper_bound_CI),]
-	    text_temp <- rbind(study_row,meta_row)
-	}
-	# select columns used for table output and forest plots
-	text_temp <- text_temp[,c(names(dat),"GEO_ID","Asthma","Treatment","Long_tissue_name","Total","App")] # include total sample size
-	# modify asthma endotypes or treatment conditions
-	text_temp[,"Asthma"] <- gsub("_", " ", text_temp[,"Asthma"])
-	text_temp[,"Treatment"] <- gsub("_", " ", text_temp[,"Treatment"])
-	# compute total sample size for meta-analysis results
-	text_temp[,"Total"] <- as.character(text_temp[,"Total"])
-	text_temp[nrow(text_temp),"Total"] <- sum(as.numeric(text_temp[-nrow(text_temp),"Total"]))
-	return(text_temp)
+        # sort by effect size (fold change) by individual study as the order changes after merging
+        if (nrow(text_temp)>1) {
+            meta_row <- text_temp[nrow(text_temp),]
+            study_row <- text_temp[1:(nrow(text_temp)-1),] # sort exclude the meta-analysis result
+            study_row <- study_row[order(-study_row$`Fold Change`, -study_row$Upper_bound_CI),]
+            text_temp <- rbind(study_row,meta_row)
+        }
+        # select columns used for table output and forest plots
+        text_temp <- text_temp[,c(names(dat),"GEO_ID","Asthma","Treatment","Long_tissue_name","Total","App")] # include total sample size
+        # modify asthma endotypes or treatment conditions
+        text_temp[,"Asthma"] <- gsub("_", " ", text_temp[,"Asthma"])
+        text_temp[,"Treatment"] <- gsub("_", " ", text_temp[,"Treatment"])
+        # compute total sample size for meta-analysis results
+        text_temp[,"Total"] <- as.character(text_temp[,"Total"])
+        text_temp[nrow(text_temp),"Total"] <- sum(as.numeric(text_temp[-nrow(text_temp),"Total"]))
+        return(text_temp)
     }
-  
+    
     # Function: "tableforgraph_func" 
     # Obtain table output
     tableforgraph_func <- function(dat){
-	empt_dat <- data.frame(matrix(ncol=6, nrow = 0)) # create an empty dataset if nothing is selected
-	names(empt_dat) <- c("Study ID", "Tissue", "Comparison", "P Value", "Q Value", "Fold Change(95% CI)")
-   	if (nrow(dat)==0) {return(empt_dat)}
-	data4table <- dat %>% 
+        empt_dat <- data.frame(matrix(ncol=6, nrow = 0)) # create an empty dataset if nothing is selected
+        names(empt_dat) <- c("Study ID", "Tissue", "Comparison", "P Value", "Q Value", "Fold Change(95% CI)")
+        if (nrow(dat)==0) {return(empt_dat)}
+        data4table <- dat %>% 
             dplyr::mutate(`Study ID`=GEO_ID, `Tissue`=Long_tissue_name, `Fold Change(95% CI)` = paste(`Fold Change`, " ","(", Lower_bound_CI, ",", Upper_bound_CI, ")", sep = "")) %>%
             dplyr::select(`Study ID`, `Tissue`, `Comparison`, `P Value`, `Q Value`, `Fold Change(95% CI)`) %>%
-	    mutate_all(as.character)
-    	if (nrow(data4table)>1) {
-	    data4table[nrow(data4table),c("Study ID")] <- "Combined"
-	    data4table[nrow(data4table),c("Comparison")] <- data4table[1,c("Comparison")]
-	}
+            mutate_all(as.character)
+        if (nrow(data4table)>1) {
+            data4table[nrow(data4table),c("Study ID")] <- "Combined"
+            data4table[nrow(data4table),c("Comparison")] <- data4table[1,c("Comparison")]
+        }
         return(data4table)
     }
-
+    
     # obtain intermediate asthma data for table output and forest plots
     data3_Asthma <- reactive({
         interdata_func(data2_Asthma(),meta_Asthma())
     })
-
+    
     # output table for asthma
     tableforgraph_Asthma <- reactive({
-	tableforgraph_func(data3_Asthma())
+        tableforgraph_func(data3_Asthma())
     })
     
     # GC
@@ -455,18 +455,18 @@ shinyServer(function(input, output, session) {
             dplyr::mutate(Fold_Change=round(Fold_Change,digits=2),adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), P.Value =format(P.Value, scientific=TRUE, digits=3), 
                           Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2), Comparison = "Stimulation vs. at baseline")%>%
             dplyr::rename(`Study ID`=Unique_ID, `P Value`=P.Value, `Q Value`=adj.P.Val, `Fold Change`=Fold_Change)})
-
+    
     # obtain intermediate GC data for table output and forest plots
     data3_GC <- reactive({
         interdata_func(data2_GC(),meta_GC())
     })
-
+    
     # output table for GC
     tableforgraph_GC <- reactive({
-	tableforgraph_func(data3_GC())
+        tableforgraph_func(data3_GC())
     })
-
-
+    
+    
     #combine asthma & GC into one
     output$tableforgraph <- DT::renderDataTable(rbind(tableforgraph_Asthma(), tableforgraph_GC()),
                                                 class = 'cell-border stripe', 
@@ -481,45 +481,45 @@ shinyServer(function(input, output, session) {
     
     # Function: "forestplot_func" 
     # Forest plots
-
+    
     forestplot_func <- function(dat) {
-	
+        
         validate(need(nrow(dat) != 0, "Please choose a dataset."))
-
-	# select columns for forest plot text
+        
+        # select columns for forest plot text
         if ("asthma"%in%dat$App) {
             text_temp <- dat[,c("GEO_ID","Long_tissue_name","Asthma","Q Value")]
-	} else {
-	    text_temp <- dat[,c("GEO_ID","Long_tissue_name","Treatment","Q Value")]
-	}
-	# create an empty dataset for forestplot text
-        tabletext <- data.frame(matrix(nrow=1, ncol=4))
-	# assign column names same as the original data
-	names(tabletext) <- names(text_temp)
-	# create first line for forestplot text
-	if ("asthma"%in%dat$App) {
-            tabletext[1,] <- c("GEO ID", "Tissue", "Endotype", "Q Value")
-	} else {
-	    tabletext[1,] <- c("GEO ID", "Tissue", "Treatment", "Q Value")
-	}
-	# add text for individual study result
-        tabletext <- rbind(tabletext,text_temp)
-
-	# convert all columns into character
-	tabletext <- tabletext %>% mutate_all(as.character)
-
-	# assign variables to meta-analysis result row
-        if (nrow(dat)>1) {
-	    tabletext[nrow(tabletext),c("GEO_ID")] <- "Combined"
-	    tabletext[nrow(tabletext),c("Long_tissue_name")] <- ""
-            tabletext[nrow(tabletext),3] <- "" # "Asthma" or "Treatment" is in column 3
+        } else {
+            text_temp <- dat[,c("GEO_ID","Long_tissue_name","Treatment","Q Value")]
         }
-
-	# remove double quote
+        # create an empty dataset for forestplot text
+        tabletext <- data.frame(matrix(nrow=1, ncol=4))
+        # assign column names same as the original data
+        names(tabletext) <- names(text_temp)
+        # create first line for forestplot text
+        if ("asthma"%in%dat$App) {
+            tabletext[1,] <- c("GEO ID", "Tissue", "Endotype", "Q Value")
+        } else {
+            tabletext[1,] <- c("GEO ID", "Tissue", "Treatment", "Q Value")
+        }
+        # add text for individual study result
+        tabletext <- rbind(tabletext,text_temp)
+        
+        # convert all columns into character
+        tabletext <- tabletext %>% mutate_all(as.character)
+        
+        # assign variables to meta-analysis result row
+        if (nrow(dat)>1) {
+            tabletext[nrow(tabletext),c("GEO_ID")] <- ""
+            tabletext[nrow(tabletext),c("Long_tissue_name")] <- ""
+            tabletext[nrow(tabletext),3] <- "Combined" # "Asthma" or "Treatment" is in column 3
+        }
+        
+        # remove double quote
         options(useFancyQuotes = FALSE)
         tabletext <- gsub('"', '', sapply(tabletext, dQuote))
-	
-	# table with fold changes for plot
+        
+        # table with fold changes for plot
         tableplot <- rbind(c(NA,NA,NA,NA),dat[,c("Fold Change","Lower_bound_CI","Upper_bound_CI")])	
         
         # function to color forestplot lines and boxes by -log10 of adjusted pvalue - always relative to the max of 8
@@ -545,7 +545,7 @@ shinyServer(function(input, output, session) {
         } else {
             gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#BDB6B0")}
         }
-        hrzl_lines[[1]] <- gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#ffffff")
+        hrzl_lines[[1]] <- gpar(lwd=1000/size_par, lineend="butt", columns=5, col="#00FFFF00")   # #00FFFF00 is transparent - else plot background overlaps with title
         hrzl_lines[[length(hrzl_lines)]] <- gpar(lwd=150/size_par, lineend="butt", columns=5, col="#ffffff")
         
         # adjust dot size based on sample size
@@ -553,31 +553,33 @@ shinyServer(function(input, output, session) {
             total <- as.numeric(dat$Total)
             boxsize=c(0,0.1*log10(total)) # 0 for the header line
         } else {boxsize=0.2} # boxsize = 0.2 default
-
+        
         if ("asthma"%in%dat$App) {
-            title <- "Asthma vs. Non-asthma"
-	} else {
-	    title <- "Treatment vs. Control"
-	}
-
+            title <- paste0("Asthma vs. Non-asthma for ", curr_gene())
+        } else {
+            title <- paste0("Treatment vs. Control for ", curr_gene())
+        }
+        
         forestplot(tabletext, title = title, tableplot, zero = 1, 
                    xlab = "Fold Change", boxsize = boxsize, col = fpColors(zero="black"), 
-                   lwd.ci = 2, xticks = xticks, is.summary=c(TRUE,rep(FALSE,nrow(dat))), 
+                   lwd.ci = 2, xticks = xticks, 
+                   is.summary = if (nrow(dat)>1) {c(TRUE,rep(FALSE,nrow(dat)-1),TRUE)} else {c(TRUE,rep(FALSE,nrow(dat)))}, 
+                   # need if-else in case only one dataset selected - else it would look like a summary row
                    lineheight = unit(19.7/size_par, "cm"), mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
                    txt_gp = fpTxtGp(cex = 1.2, xlab = gpar(cex = 1.35), ticks = gpar(cex = 1.2), title = gpar(cex = 1.45)),
                    hrzl_lines=hrzl_lines)
     }
     
     # asthma forestplot
-
+    
     forestplot_asthma <- reactive({
-	forestplot_func(data3_Asthma())
+        forestplot_func(data3_Asthma())
     })
-
+    
     # GC forestplot
-
+    
     forestplot_GC <- reactive({
-	forestplot_func(data3_GC())
+        forestplot_func(data3_GC())
     })
     
     output$forestplot_asthma = renderPlot({forestplot_asthma()}, height=650)
@@ -600,8 +602,8 @@ shinyServer(function(input, output, session) {
     output$color_scale3 <- renderImage({ 
         return(list(
             src = "databases/www/color_scale_horizontal.png",
-            height=109*1.05,
-            width=1015*1.05,
+            height=109*1.42,
+            width=1015*1.42,
             filetype = "image/png",
             alt = "color_scale"))}, deleteFile = FALSE)
     
@@ -750,7 +752,7 @@ shinyServer(function(input, output, session) {
     }
     
     #plot height increases if more tracks are displayed
-    observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, width=1055,
+    observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, width=1400,
                                                     height=400 + 15*length(unique(gene_subs()$transcript)) + 30*nrow(snp_eve_subs()) + 10*(nrow(snp_subs())+nrow(snp_gabriel_subs())))})
     
     
@@ -793,17 +795,17 @@ shinyServer(function(input, output, session) {
     graphgene=reactive({curr_gene()})
     
     output$asthma_fc_download <- downloadHandler(
-        filename= function(){paste0("fold_change_asthma_", graphgene(), "_", Sys.Date(), ".png")},
+        filename= function(){paste0("REALGAR_asthma_forestplot_", graphgene(), ".png")},
         content=function(file){
             png(file, width=12, height=9, units="in", res=300)
-            forestplot_asthma()
+            print(forestplot_func(data3_Asthma()))
             dev.off()})
     
     output$GC_fc_download <- downloadHandler(
-        filename= function(){paste0("fold_change_GC_", graphgene(), "_", Sys.Date(), ".png")},
+        filename= function(){paste0("REALGAR_treatment_forestplot_", graphgene(), ".png")},
         content=function(file){
             png(file, width=12, height=9, units="in", res=300)
-            forestplot_GC()
+            print(forestplot_func(data3_GC()))
             dev.off()})
     
     # output$pval_download <- downloadHandler(
@@ -816,15 +818,15 @@ shinyServer(function(input, output, session) {
     #                            # http://stackoverflow.com/questions/27008434/downloading-png-from-shiny-r-pt-2
     
     output$gene_tracks_download <- downloadHandler(
-        filename= function(){paste0("gene_tracks_", graphgene(), "_", Sys.Date(), ".png")},
+        filename= function(){paste0("REALGAR_gene_tracks_", graphgene(), ".png")},
         content=function(file){
             png(file, width=16, height=12, units="in", res=300)
             gene_tracks()
             dev.off()})
     
-    output$table_download <- downloadHandler(filename = function() {paste0('Asthma&GC_data_summary_table_',graphgene(),"_", Sys.Date(), '.csv')},
+    output$table_download <- downloadHandler(filename = function() {paste0('REALGAR_expression_summary_table_',graphgene(), '.csv')},
                                              content = function(file) {write.csv(rbind(tableforgraph_Asthma(), tableforgraph_GC()), file, row.names=FALSE)})
     
-    output$SNP_data_download <- downloadHandler(filename = function() {paste0('SNP_results_for_',graphgene(), Sys.Date(), '.csv')},
+    output$SNP_data_download <- downloadHandler(filename = function() {paste0('REALGAR_SNP_results_',graphgene(), '.csv')},
                                                 content = function(file) {write.csv(snp_data(), file, row.names=FALSE)})
 })
