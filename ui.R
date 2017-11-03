@@ -70,11 +70,11 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                                                        
                                                        mainPanel(hr(),
                                                                  fluidRow(br(),
-                                                                          column(10, plotOutput(outputId="forestplot_asthma",width="1150px", height="650px"), align="right"), 
+                                                                          column(10, plotOutput(outputId="forestplot_asthma",width="975px", height="650px"), align="right"), 
                                                                           div(style="margin-top: 45px", column(2, imageOutput("color_scale1"), align="left")), # margin-top needed to align color scale w/ forest plot
                                                                           column(12, div(style="margin-left: 300px", textOutput("asthma_pcomb_text"), align="left")), # output combined p-values
                                                                           column(12, downloadButton(outputId="asthma_fc_download",label="Download asthma forest plot"), align="center"), 
-                                                                          column(10, conditionalPanel(condition = "input.Treatment != ''", br(), br(), plotOutput(outputId="forestplot_GC",width="1150px", height="650px")),align="right"),
+                                                                          column(10, conditionalPanel(condition = "input.Treatment != ''", br(), br(), plotOutput(outputId="forestplot_GC",width="975px", height="650px")),align="right"),
                                                                           column(2, div(style="margin-top: 80px", conditionalPanel(condition = "input.Treatment != ''", imageOutput("color_scale2")), align="left")), # margin-top needed to align color scale w/ forest plot
                                                                           column(12, div(style="margin-left: 300px", textOutput("GC_pcomb_text"), align="left")), # output combined p-values
                                                                           column(12, conditionalPanel(condition = "input.Treatment != ''", downloadButton(outputId="GC_fc_download",label="Download GC forest plot")), align="center"),
@@ -90,7 +90,7 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                                                                                        "SNPs are colored by p-value, with the lowest p-values corresponding to the brightest colors. ",
                                                                                        "All SNP p-values are obtained directly from the study in which the association was published."))),
                                                                           column(12, downloadButton(outputId="gene_tracks_download", label="Download gene tracks"), align="center"), br(),
-                                                                          column(12, HTML("<div style='height: 130px;'>"), imageOutput("color_scale3"), align="center", HTML("</div>")),
+                                                                          column(12, HTML("<div style='height: 90px;'>"), imageOutput("color_scale3"), align="center", HTML("</div>")),
                                                                           column(12, align="center", plotOutput(outputId="gene_tracks_outp2")),
                                                                           # div(style="margin-top: 150px", column(2, imageOutput("color_scale3"), align="right")), 
                                                                           br(), br())))),
