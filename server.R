@@ -602,8 +602,8 @@ server <- shinyServer(function(input, output, session) {
     output$color_scale3 <- renderImage({ 
         return(list(
             src = "databases/www/color_scale_horizontal.png",
-            height=109*1.42,
-            width=1015*1.42,
+            height=109*1.05,
+            width=1015*1.05,
             filetype = "image/png",
             alt = "color_scale"))}, deleteFile = FALSE)
     
@@ -752,7 +752,7 @@ server <- shinyServer(function(input, output, session) {
     }
     
     #plot height increases if more tracks are displayed
-    observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, width=1400,
+    observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, width=1055,
                                                     height=400 + 15*length(unique(gene_subs()$transcript)) + 30*nrow(snp_eve_subs()) + 10*(nrow(snp_subs())+nrow(snp_gabriel_subs())))})
     
     
