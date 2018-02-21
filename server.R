@@ -31,6 +31,7 @@ tfbs <- readRDS("databases/tfbs_for_app.RDS") #TFBS data from ENCODE - matched t
 snp <- readRDS("databases/grasp_output_for_app.RDS") #SNP data from GRASP - matched to gene ids using bedtools
 snp_eve <- readRDS("databases/eve_data_realgar.RDS") #SNP data from EVE - was already in hg19 - matched to gene ids using bedtools 
 snp_gabriel <- readRDS("databases/gabriel_data_realgar.RDS") #SNP data from GABRIEL - lifted over from hg17 to hg19 - matched to gene ids using bedtools 
+snp_fer <- readRDS("databases/allerg_GWAS_data_realgar.RDS")
 gene_locations <- fread("databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location & transcript data from GENCODE
 chrom_bands <- readRDS("databases/chrom_bands.RDS") #chromosome band info for ideogram - makes ideogram load 25 seconds faster
 #unlike all other files, gene_locations is faster with fread than with readRDS (2s load, vs 4s)
@@ -42,6 +43,7 @@ snp_eve <- dplyr::mutate(snp_eve, neg_log_meta_p = -log10(meta_P),
                          neg_log_meta_p_ea = -log10(meta_P_EA),
                          neg_log_meta_p_lat = -log10(meta_P_LAT))
 snp_gabriel <- dplyr::mutate(snp_gabriel, neg_log_p = -log10(P_ran))
+snp_fer <- dplyr::mutate(snp_fer, neg_log_p = -log10(PVALUE))
 
 #color tfbs based on binding score - used in tracks
 #create color scheme based on encode binding score & snp p-values
@@ -51,6 +53,7 @@ breaks <- c(seq(0,8,by=0.001), Inf) # this sets max universally at 8 (else highe
 
 snp$color <- inferno(8002)[as.numeric(cut(snp$neg_log_p, breaks = breaks))]
 snp_gabriel$color <- inferno(8002)[as.numeric(cut(snp_gabriel$neg_log_p, breaks = breaks))]
+snp_fer$color <- inferno(8002)[as.numeric(cut(snp_fer$neg_log_p, breaks = breaks))]
 
 snp_eve$color_meta_P <- inferno(8002)[as.numeric(cut(snp_eve$neg_log_meta_p,breaks = breaks))]
 snp_eve$color_meta_P_AA <- inferno(8002)[as.numeric(cut(snp_eve$neg_log_meta_p_aa,breaks = breaks))]
@@ -71,10 +74,11 @@ heatmap_colors <-  inferno # heatmap colors - used in p-value plot
 server <- shinyServer(function(input, output, session) {
     
     curr_gene <- reactive({
-        if (gsub(" ", "", tolower(input$curr_gene), fixed=TRUE) %in% c(snp$snp, snp_eve$snp, snp_gabriel$snp)) { #if SNP ID is entered, convert internally to nearest gene symbol  
+        if (gsub(" ", "", tolower(input$curr_gene), fixed=TRUE) %in% c(snp$snp, snp_eve$snp, snp_gabriel$snp, snp_fer$snp)) { #if SNP ID is entered, convert internally to nearest gene symbol  
             all_matches <- rbind(rbind(snp[which(snp$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")], 
                                        snp_eve[which(snp_eve$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")]), 
-                                 snp_gabriel[which(snp_gabriel$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")])
+                                 snp_gabriel[which(snp_gabriel$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")],
+                                 snp_fer[which(snp_fer$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")])
             gene_locations_unique <- gene_locations[which(!duplicated(gene_locations$symbol)),]
             all_matches <- merge(all_matches, gene_locations_unique[,c("symbol", "start")], by="symbol")
             all_matches$dist <- abs(all_matches$start - all_matches$end) # here, "end" is snp position, "start" is gene start 
@@ -627,6 +631,11 @@ server <- shinyServer(function(input, output, session) {
         if(("snp_gabriel_subs" %in% input$which_SNPs)) {unique(filter(snp_gabriel, symbol==curr_gene()))}
         else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
     
+    snp_fer_subs <- reactive({
+        if(("snp_fer_subs" %in% input$which_SNPs)) {unique(filter(snp_fer, symbol==curr_gene()))}
+        else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
+    
+        
     gene_tracks <- function() {
         validate(need(curr_gene() != "", "Please enter a gene symbol or SNP ID.")) #Generate a error message when no gene id is input.
         validate(need(GeneSymbol() != FALSE, "Please enter a valid gene symbol or SNP ID.")) # Generate error message if the gene symbol is not right.
@@ -637,16 +646,18 @@ server <- shinyServer(function(input, output, session) {
         snp_subs <- snp_subs()
         snp_eve_subs <- snp_eve_subs()
         snp_gabriel_subs <- snp_gabriel_subs()
+        snp_fer_subs <- snp_fer_subs()
         
         #for better visibility, increase tfbs and snp widths -- need scaling factor b/c different genes take up different amounts of space
-        smallest_start <- min(gene_subs$start, tfbs_subs$start, snp_subs$start, snp_eve_subs$start, snp_gabriel_subs$start)
-        largest_end <- max(gene_subs$end, tfbs_subs$end, snp_subs$end, snp_eve_subs$end, snp_gabriel_subs$end)
+        smallest_start <- min(gene_subs$start, tfbs_subs$start, snp_subs$start, snp_eve_subs$start, snp_gabriel_subs$start, snp_fer_subs$start)
+        largest_end <- max(gene_subs$end, tfbs_subs$end, snp_subs$end, snp_eve_subs$end, snp_gabriel_subs$end, snp_fer_subs$end)
         scaling_factor <- (largest_end - smallest_start)/120000
         
         tfbs_subs$end <- tfbs_subs$end + 500*scaling_factor
         snp_subs$end <- snp_subs$end + 300*scaling_factor
         snp_eve_subs$end <- snp_eve_subs$end + 300*scaling_factor
         snp_gabriel_subs$end <- snp_gabriel_subs$end + 300*scaling_factor
+        snp_fer_subs$end <- snp_fer_subs$end + 300*scaling_factor
         
         #constant for all tracks
         gen <- "hg19"
@@ -708,6 +719,19 @@ server <- shinyServer(function(input, output, session) {
             } else {snp_gabriel_size_init <- 1.4 + 0.1*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_gabriel_subs)}
         } else {snp_gabriel_size_init <- 1.4 + 0.1*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_gabriel_subs)}
         
+        # Ferreira SNPs track
+        if (nrow(snp_fer_subs) > 0) {
+            snp_fer_track <- Gviz::AnnotationTrack(snp_fer_subs, name="SNPs (Ferreira)", fill = snp_fer_subs$color, col=NULL, feature=snp_fer_subs$snp, grid=TRUE, col.grid="darkgrey")
+            
+            #rough estimate of number of stacks there will be in SNP track - for track scaling
+            if (nrow(snp_fer_subs) > 1) {
+                snp_fer_subs_temp <- snp_fer_subs
+                snp_fer_range <- max(snp_fer_subs_temp$start) - min(snp_fer_subs_temp$start)
+                snp_fer_subs_temp$start_prev <- c(0, snp_fer_subs_temp$start[1:(nrow(snp_fer_subs_temp)-1)])
+                snp_fer_subs_temp$dist <- as.numeric(snp_fer_subs_temp$start) - as.numeric(snp_fer_subs_temp$start_prev)
+                snp_fer_size_init <- 10 + as.numeric(nrow(snp_fer_subs[which(snp_fer_subs$dist < snp_fer_range),])) + 0.12*length(unique(gene_subs$transcript))
+            } else {snp_fer_size_init <- 1.4 + 0.1*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_fer_subs)}
+        } else {snp_fer_size_init <- 1.4 + 0.1*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_fer_subs)}
         
         #track sizes - defaults throw off scaling as more tracks are added
         chrom_size <- 1.2 + 0.01*length(unique(gene_subs$transcript)) + 0.01*nrow(snp_subs) + 0.005*nrow(snp_eve_subs) + 0.01*nrow(snp_gabriel_subs)
@@ -717,6 +741,7 @@ server <- shinyServer(function(input, output, session) {
         snp_size <- snp_size_init #from above
         snp_eve_size <- snp_eve_size_init #from above
         snp_gabriel_size <- snp_gabriel_size_init #from above
+        snp_fer_size <- snp_fer_size_init #from above
         
         # #track sizes - defaults throw off scaling as more tracks are added --- if transcript stacking="dense"
         # chrom_size <- 1 + 0.005*length(unique(gene_subs$transcript)) + 0.005*nrow(snp_subs) + 0.005*nrow(snp_eve_subs) + 0.005*nrow(snp_gabriel_subs)
@@ -728,7 +753,7 @@ server <- shinyServer(function(input, output, session) {
         # snp_gabriel_size <- snp_gabriel_size_init #from above
         
         #select the non-empty tracks to output -- output depends on whether there are TFBS and/or SNPs for a given gene
-        subset_size <- sapply(c("tfbs_subs", "snp_subs", "snp_eve_subs", "snp_gabriel_subs"), function(x) {nrow(get(x))}) #size of each subset
+        subset_size <- sapply(c("tfbs_subs", "snp_subs", "snp_eve_subs", "snp_gabriel_subs", "snp_fer_subs"), function(x) {nrow(get(x))}) #size of each subset
         non_zeros <- names(subset_size)[which(!(subset_size==0))] #which subsets have non-zero size
         
         df_extract <- function(x,y) { #gives name of track and track size variable for non-zero subsets (y is "track" or "size")
@@ -739,10 +764,10 @@ server <- shinyServer(function(input, output, session) {
         
         #use df_extract function to get track & track size corresponding to all non-zero subsets
         #note chrom_track, axis_track and gene_track are present for all
-        selected_tracks <- list(chrom_track, axis_track, gene_track, sapply(non_zeros, df_extract, y="track")$tfbs_subs, sapply(non_zeros, df_extract, y="track")$snp_subs, sapply(non_zeros, df_extract, y="track")$snp_eve_subs, sapply(non_zeros, df_extract, y="track")$snp_gabriel_subs)
+        selected_tracks <- list(chrom_track, axis_track, gene_track, sapply(non_zeros, df_extract, y="track")$tfbs_subs, sapply(non_zeros, df_extract, y="track")$snp_subs, sapply(non_zeros, df_extract, y="track")$snp_eve_subs, sapply(non_zeros, df_extract, y="track")$snp_gabriel_subs, sapply(non_zeros, df_extract, y="track")$snp_fer_subs)
         selected_tracks <- Filter(Negate(function(x) is.null(unlist(x))), selected_tracks) #remove null elements from list
         
-        selected_sizes <- na.omit(c(chrom_size,axis_size,gene_size, sapply(non_zeros, df_extract, y="size")[1], sapply(non_zeros, df_extract, y="size")[2], sapply(non_zeros, df_extract, y="size")[3], sapply(non_zeros, df_extract, y="size")[4]))
+        selected_sizes <- na.omit(c(chrom_size,axis_size,gene_size, sapply(non_zeros, df_extract, y="size")[1], sapply(non_zeros, df_extract, y="size")[2], sapply(non_zeros, df_extract, y="size")[3], sapply(non_zeros, df_extract, y="size")[4], sapply(non_zeros, df_extract, y="size")[5]))
         selected_sizes <- Filter(Negate(function(x) is.null(unlist(x))), selected_sizes) #remove null elements from list - else run into trouble in conditions when no TFBS & no SNP tracks selected
         #note: use names to extract from selected_tracks b/c it is a list vs. index to extract from selected_sizes, since this is numeric
         
@@ -753,7 +778,7 @@ server <- shinyServer(function(input, output, session) {
     
     #plot height increases if more tracks are displayed
     observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, width=1055,
-                                                    height=400 + 15*length(unique(gene_subs()$transcript)) + 30*nrow(snp_eve_subs()) + 10*(nrow(snp_subs())+nrow(snp_gabriel_subs())))})
+                                                    height=400 + 15*length(unique(gene_subs()$transcript)) + 30*nrow(snp_eve_subs()) + 10*(nrow(snp_subs())+nrow(snp_gabriel_subs())+nrow(snp_fer_subs())))})
     
     
     #################################
@@ -786,8 +811,17 @@ server <- shinyServer(function(input, output, session) {
         }
     })
     
+    snp_fer_subs_temp <- reactive({
+        if (nrow(snp_fer_subs()) > 0) {
+            snp_fer_subs() %>%
+                dplyr::rename(position=start, meta_P=PVALUE) %>%
+                dplyr::mutate(source = "Ferreira") %>%
+                dplyr::select(-c(end, color))
+        }
+    })
     
-    snp_data <- reactive({dplyr::bind_rows(snp_subs_temp(), snp_eve_subs_temp(), snp_gabriel_subs_temp())})
+    
+    snp_data <- reactive({dplyr::bind_rows(snp_subs_temp(), snp_eve_subs_temp(), snp_gabriel_subs_temp(), snp_fer_subs_temp())})
     
     ######################
     ## Download buttons ##
