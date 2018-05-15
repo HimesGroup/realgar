@@ -4,6 +4,9 @@
 # cat(file=stderr(), as.character(Sys.time()),"packages start\n")
 # use this type of command to easily see dataset loading time in RStudio  
 # currently 3 seconds from "start package load" to "finish gene_locations load"
+
+.libPaths("/home/maya/R/x86_64-pc-linux-gnu-library/3.4/") # else have problems with Gviz package not being found
+
 library(shiny)
 library(dplyr)
 library(data.table)
@@ -13,27 +16,29 @@ library(stringr)
 library(viridis) 
 library(DT) 
 library(Gviz)
-source("utilities/meta.R")
-source("utilities/comb_pval.R")
-source("utilities/name_convert.R")
+source("/srv/shiny-server/realgar/utilities/meta.R")
+source("/srv/shiny-server/realgar/utilities/comb_pval.R")
+source("/srv/shiny-server/realgar/utilities/name_convert.R")
 
+#
 # load dataset descriptions
-Dataset_Info <- readRDS("databases/microarray_data_infosheet_R.RDS")
+Dataset_Info <- readRDS("/srv/shiny-server/databases/microarray_data_infosheet_R.RDS")
 
 #load and name GEO microarray and RNA-Seq datasets
-for (i in Dataset_Info$Unique_ID) {assign(i, readRDS(paste0("databases/microarray_results/", i, ".RDS")))} 
+for (i in Dataset_Info$Unique_ID) {assign(i, readRDS(paste0("/srv/shiny-server/databases/microarray_results/", i, ".RDS")))}
 
 Dataset_Info$PMID <- as.character(Dataset_Info$PMID) #else next line does not work
 Dataset_Info[is.na(Dataset_Info$PMID), "PMID"] <- ""
 
 #load info for gene tracks: gene locations, TFBS, SNPs, etc.
-tfbs <- readRDS("databases/tfbs_for_app.RDS") #TFBS data from ENCODE - matched to gene ids using bedtools
-snp <- readRDS("databases/grasp_output_for_app.RDS") #SNP data from GRASP - matched to gene ids using bedtools
-snp_eve <- readRDS("databases/eve_data_realgar.RDS") #SNP data from EVE - was already in hg19 - matched to gene ids using bedtools 
-snp_gabriel <- readRDS("databases/gabriel_data_realgar.RDS") #SNP data from GABRIEL - lifted over from hg17 to hg19 - matched to gene ids using bedtools 
-snp_fer <- readRDS("databases/allerg_GWAS_data_realgar.RDS")
-gene_locations <- fread("databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location & transcript data from GENCODE
-chrom_bands <- readRDS("databases/chrom_bands.RDS") #chromosome band info for ideogram - makes ideogram load 25 seconds faster
+tfbs <- readRDS("/srv/shiny-server/databases/tfbs_for_app.RDS") #TFBS data from ENCODE - matched to gene ids using bedtools
+snp <- readRDS("/srv/shiny-server/databases/grasp_output_for_app.RDS") #SNP data from GRASP - matched to gene ids using bedtools
+snp_eve <- readRDS("/srv/shiny-server/databases/eve_data_realgar.RDS") #SNP data from EVE - was already in hg19 - matched to gene ids using bedtools 
+snp_gabriel <- readRDS("/srv/shiny-server/databases/gabriel_data_realgar.RDS") #SNP data from GABRIEL - lifted over from hg17 to hg19 - matched to gene ids using bedtools 
+snp_fer <- readRDS("/srv/shiny-server/databases/allerg_GWAS_data_realgar.RDS") #SNP data from Ferreira - already in hg19 - matched to gene ids using bedtools
+snp_TAGC <- readRDS("/srv/shiny-server/databases/TAGC_data_realgar.RDS") #SNP data from TAGC - already in hg19 - matched to gene ids using bedtools
+gene_locations <- fread("/srv/shiny-server/databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location & transcript data from GENCODE
+chrom_bands <- readRDS("/srv/shiny-server/databases/chrom_bands.RDS") #chromosome band info for ideogram - makes ideogram load 25 seconds faster
 #unlike all other files, gene_locations is faster with fread than with readRDS (2s load, vs 4s)
 
 #compute -log10 for SNPs -- used for SNP colors
@@ -44,6 +49,8 @@ snp_eve <- dplyr::mutate(snp_eve, neg_log_meta_p = -log10(meta_P),
                          neg_log_meta_p_lat = -log10(meta_P_LAT))
 snp_gabriel <- dplyr::mutate(snp_gabriel, neg_log_p = -log10(P_ran))
 snp_fer <- dplyr::mutate(snp_fer, neg_log_p = -log10(PVALUE))
+snp_TAGC <- dplyr::mutate(snp_TAGC, neg_log_p_multi = -log10(p_ran_multi),
+                          neg_log_p_euro = -log10(p_ran_euro))
 
 #color tfbs based on binding score - used in tracks
 #create color scheme based on encode binding score & snp p-values
@@ -54,6 +61,9 @@ breaks <- c(seq(0,8,by=0.001), Inf) # this sets max universally at 8 (else highe
 snp$color <- inferno(8002)[as.numeric(cut(snp$neg_log_p, breaks = breaks))]
 snp_gabriel$color <- inferno(8002)[as.numeric(cut(snp_gabriel$neg_log_p, breaks = breaks))]
 snp_fer$color <- inferno(8002)[as.numeric(cut(snp_fer$neg_log_p, breaks = breaks))]
+
+snp_TAGC$color_p_ran_multi <- inferno(8002)[as.numeric(cut(snp_TAGC$p_ran_multi,breaks = breaks))]
+snp_TAGC$color_p_ran_euro <- inferno(8002)[as.numeric(cut(snp_TAGC$p_ran_euro,breaks = breaks))]
 
 snp_eve$color_meta_P <- inferno(8002)[as.numeric(cut(snp_eve$neg_log_meta_p,breaks = breaks))]
 snp_eve$color_meta_P_AA <- inferno(8002)[as.numeric(cut(snp_eve$neg_log_meta_p_aa,breaks = breaks))]
@@ -74,11 +84,12 @@ heatmap_colors <-  inferno # heatmap colors - used in p-value plot
 server <- shinyServer(function(input, output, session) {
     
     curr_gene <- reactive({
-        if (gsub(" ", "", tolower(input$curr_gene), fixed=TRUE) %in% c(snp$snp, snp_eve$snp, snp_gabriel$snp, snp_fer$snp)) { #if SNP ID is entered, convert internally to nearest gene symbol  
+        if (gsub(" ", "", tolower(input$curr_gene), fixed=TRUE) %in% c(snp$snp, snp_eve$snp, snp_gabriel$snp, snp_fer$snp, snp_TAGC$snp)) { #if SNP ID is entered, convert internally to nearest gene symbol  
             all_matches <- rbind(rbind(snp[which(snp$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")], 
                                        snp_eve[which(snp_eve$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")]), 
                                  snp_gabriel[which(snp_gabriel$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")],
-                                 snp_fer[which(snp_fer$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")])
+                                 snp_fer[which(snp_fer$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")],
+                                 snp_TAGC[which(snp_TAGC$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")])
             gene_locations_unique <- gene_locations[which(!duplicated(gene_locations$symbol)),]
             all_matches <- merge(all_matches, gene_locations_unique[,c("symbol", "start")], by="symbol")
             all_matches$dist <- abs(all_matches$start - all_matches$end) # here, "end" is snp position, "start" is gene start 
@@ -92,9 +103,9 @@ server <- shinyServer(function(input, output, session) {
     
     GeneSymbol <- reactive({if (curr_gene() %in% genes_avail) {TRUE} else {FALSE}})  #used later to generate error message when a wrong gene symbol is input
     
-    #####################################################################
-    ## "Select all" buttons for tissue, asthma and treatment selection ##
-    #####################################################################
+    #################################################################################
+    ## "Select all" buttons for tissue, asthma, treatment and GWAS study selection ##
+    #################################################################################
     
     #Tissue
     tissue_choices <- c("Airway smooth muscle"="ASM", "Bronchial epithelium"="BE", 
@@ -110,8 +121,7 @@ server <- shinyServer(function(input, output, session) {
             updateCheckboxGroupInput(session,"Tissue","Tissue",choices=tissue_choices, inline = TRUE)
             updateActionButton(session, "selectall_tissue", label="Select all") # change action button label based on user input
         } else { # else is 1, 3, 5 etc.
-            updateCheckboxGroupInput(session,"Tissue","Tissue",choices=tissue_choices,selected=c("BE", "LEC", "NE", "CD4", "CD8", "PBMC", "WBC", "ASM", "BAL", "Lung",
-                                                                                                 "chALL", "MCF10A-Myc", "MACRO", "U2O", "LCL", "SAE"), inline = TRUE)
+            updateCheckboxGroupInput(session, "Tissue", "Tissue", choices = tissue_choices, selected = tissue_choices, inline = TRUE)
             updateActionButton(session, "selectall_tissue", label="Unselect all")
         }
     })
@@ -124,12 +134,10 @@ server <- shinyServer(function(input, output, session) {
     observe({
         if(input$selectall_asthma == 0) return(NULL) 
         else if (input$selectall_asthma%%2 == 0) {
-            updateCheckboxGroupInput(session,"Asthma","Asthma",choices=asthma_choices)
+            updateCheckboxGroupInput(session, "Asthma", "Asthma", choices=asthma_choices)
             updateActionButton(session, "selectall_asthma", label="Select all")
         } else {
-            updateCheckboxGroupInput(session,"Asthma","Asthma",
-                                     choices=asthma_choices,
-                                     selected=c("allergic_asthma", "asthma", "asthma_and_rhinitis", "fatal_asthma", "mild_asthma", "non_allergic_asthma", "severe_asthma"))
+            updateCheckboxGroupInput(session,"Asthma","Asthma", choices=asthma_choices, selected=asthma_choices)
             updateActionButton(session, "selectall_asthma", label="Unselect all")
         }})
     
@@ -140,20 +148,40 @@ server <- shinyServer(function(input, output, session) {
     observe({
         if(input$selectall_treatment == 0) return(NULL) 
         else if (input$selectall_treatment%%2 == 0) {
-            updateCheckboxGroupInput(session,"Treatment","Treatment",choices=treatment_choices)
+            updateCheckboxGroupInput(session, "Treatment", "Treatment", choices = treatment_choices)
             updateActionButton(session, "selectall_treatment", label="Select all")
         }
         else {
-            updateCheckboxGroupInput(session,"Treatment","Treatment",choices=treatment_choices,selected=c("BA", "GC", "smoking","vitD"))
+            updateCheckboxGroupInput(session, "Treatment", "Treatment", choices = treatment_choices, selected = treatment_choices)
             updateActionButton(session, "selectall_treatment", label="Unselect all")
         }})
     
-    #########################################
-    ## reactive UI for EVE p-value options ##
-    #########################################
+    #GWAS
+    GWAS_choices <- c("EVE"="snp_eve_subs", "Ferreira"="snp_fer_subs", "GABRIEL"="snp_gabriel_subs", "GRASP"="snp_subs", "TAGC Consortium"="snp_TAGC_subs")
+    
+    observe({
+        if(input$selectall_GWAS == 0) return(NULL) 
+        else if (input$selectall_GWAS%%2 == 0) {
+            updateCheckboxGroupInput(session,"which_SNPs","GWAS Results",choices=GWAS_choices)
+            updateActionButton(session, "selectall_GWAS", label="Select all")
+        }
+        else {
+            updateCheckboxGroupInput(session,"which_SNPs","GWAS Results", choices=GWAS_choices, selected=GWAS_choices)
+            updateActionButton(session, "selectall_GWAS", label="Unselect all")
+        }})
+    
+    ################################################
+    ## reactive UI for EVE & TAGC p-value options ##
+    ################################################
+    
+    #if either EVE or TAGC SNPs selected, display the phrase "GWAS display options:"
+    output$GWAS_text <- reactive({if("snp_eve_subs" %in% input$which_SNPs | "snp_TAGC_subs" %in% input$which_SNPs){"GWAS display options:"} else {""}})
     
     #if EVE SNPs selected, display option to choose population
-    output$eve_options <- reactive({if("snp_eve_subs" %in% input$which_SNPs) {"GWAS display options:"} else {""}})
+    output$eve_options <- reactive({if("snp_eve_subs" %in% input$which_SNPs) {"-----------------------------------"} else {""}})
+    
+    #if TAGC SNPs selected, display option to choose population
+    output$TAGC_options <- reactive({if("snp_TAGC_subs" %in% input$which_SNPs) {"-----------------------------------"} else {""}})
     
     #######################
     ## GEO studies table ##
@@ -293,10 +321,14 @@ server <- shinyServer(function(input, output, session) {
         #preparing the data for levelplots
         #calculate the fold change, order by fold change for levelplots
         validate(need(GeneSymbol() != FALSE, "Please enter a valid gene symbol or SNP ID.")) # Generate error message if the gene symbol is not right.
-        output.table <- dplyr::mutate(output.table, Fold_Change=2^(logFC), neglogofP=(-log10(adj.P.Val)), Lower_bound_CI = 2^(lower), Upper_bound_CI = 2^(upper)) #note that this is taking -log10 of adjusted p-value
-        # row.names(output.table) <- output.table$Unique_ID #crucial for plot labels on levelplot
+        
+        output.table <- dplyr::mutate(output.table, Fold_Change=2^(logFC), 
+                                      neglogofP=(-log10(adj.P.Val)), #note that this is taking -log10 of adjusted p-value
+                                      Lower_bound_CI = 2^(lower), 
+                                      Upper_bound_CI = 2^(upper)) 
+        
         output.table <- output.table[order(output.table$Fold_Change, output.table$Upper_bound_CI),]
-        #print(output.table)
+       
     })
     
     
@@ -313,6 +345,8 @@ server <- shinyServer(function(input, output, session) {
     data_GC <- reactive({ output.tableforplot_GC = output.tableforplot()
     output.tableforplot_GC = output.tableforplot_GC[output.tableforplot_GC$App %in% c("GC", "BA", "smoking", "vitD"),]
     output.tableforplot_GC[rev(rownames(output.tableforplot_GC)),]})
+    
+    
     ###################################
     ##        Combined p-values      ##
     ###################################
@@ -380,8 +414,12 @@ server <- shinyServer(function(input, output, session) {
         data_Asthma()%>%
             dplyr::select(Unique_ID, adj.P.Val, P.Value,Fold_Change, neglogofP, Lower_bound_CI, Upper_bound_CI) %>%
             arrange(desc(Fold_Change),desc(Upper_bound_CI)) %>% # sort by first effect size (fold change) and then by upper CI in a descending order
-            dplyr::mutate(Fold_Change=round(Fold_Change,digits=2),adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), P.Value =format(P.Value, scientific=TRUE, digits=3), 
-                          Lower_bound_CI = round(Lower_bound_CI, digits = 2), Upper_bound_CI = round(Upper_bound_CI, digits = 2), Comparison = "Asthma vs. non-asthma")%>%
+            dplyr::mutate(Fold_Change=round(Fold_Change,digits=2),
+                          adj.P.Val=format(adj.P.Val, scientific=TRUE, digits=3), 
+                          P.Value =format(P.Value, scientific=TRUE, digits=3), 
+                          Lower_bound_CI = round(Lower_bound_CI, digits = 2), 
+                          Upper_bound_CI = round(Upper_bound_CI, digits = 2), 
+                          Comparison = "Asthma vs. non-asthma")%>%
             dplyr::rename(`Study ID`=Unique_ID, `P Value`=P.Value, `Q Value`=adj.P.Val, `Fold Change`=Fold_Change)})
     
     # Function: "interdata_func"
@@ -566,7 +604,7 @@ server <- shinyServer(function(input, output, session) {
         
         forestplot(tabletext, title = title, tableplot, zero = 1, 
                    xlab = "Fold Change", boxsize = boxsize, col = fpColors(zero="black"), 
-                   lwd.ci = 2, xticks = xticks, 
+                   lwd.ci = 2, xticks = xticks, colgap=unit(4,"mm"),
                    is.summary = if (nrow(dat)>1) {c(TRUE,rep(FALSE,nrow(dat)-1),TRUE)} else {c(TRUE,rep(FALSE,nrow(dat)))}, 
                    # need if-else in case only one dataset selected - else it would look like a summary row
                    lineheight = unit(19.7/size_par, "cm"), mar = unit(c(5,0,0,5),"mm"), fn.ci_norm = color_fn,
@@ -591,7 +629,7 @@ server <- shinyServer(function(input, output, session) {
     
     output$color_scale1 <- output$color_scale2 <- renderImage({ #need two separate output names - else it fails (can't output same thing twice?)
         return(list(
-            src = "databases/www/color_scale_vertical.png",
+            src = "/srv/shiny-server/databases/www/color_scale_vertical.png",
             height=550,
             width=59,
             filetype = "image/png",
@@ -605,7 +643,7 @@ server <- shinyServer(function(input, output, session) {
     #horizontal color scale for gene tracks
     output$color_scale3 <- renderImage({ 
         return(list(
-            src = "databases/www/color_scale_horizontal.png",
+            src = "/srv/shiny-server/databases/www/color_scale_horizontal.png",
             height=109*1.05,
             width=1015*1.05,
             filetype = "image/png",
@@ -635,7 +673,14 @@ server <- shinyServer(function(input, output, session) {
         if(("snp_fer_subs" %in% input$which_SNPs)) {unique(filter(snp_fer, symbol==curr_gene()))}
         else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
     
-        
+    snp_TAGC_subs <- reactive({
+        if(("snp_TAGC_subs" %in% input$which_SNPs)) {
+            snp_TAGC_temp <- snp_TAGC[which((snp_TAGC$symbol==curr_gene()) & (!is.na(unlist(snp_TAGC[,paste0("color_", input$which_TAGC_pvals)])))),]  
+            #need the second filter criterion because otherwise will output snp names & otherwise blank if NA pvalues
+            if (nrow(snp_TAGC_temp) > 0) {snp_TAGC_temp} else {data.frame(matrix(nrow = 0, ncol = 0))} #since pval_selector might remove all rows 
+        } else {data.frame(matrix(nrow = 0, ncol = 0))}
+    }) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
+    
     gene_tracks <- function() {
         validate(need(curr_gene() != "", "Please enter a gene symbol or SNP ID.")) #Generate a error message when no gene id is input.
         validate(need(GeneSymbol() != FALSE, "Please enter a valid gene symbol or SNP ID.")) # Generate error message if the gene symbol is not right.
@@ -647,10 +692,11 @@ server <- shinyServer(function(input, output, session) {
         snp_eve_subs <- snp_eve_subs()
         snp_gabriel_subs <- snp_gabriel_subs()
         snp_fer_subs <- snp_fer_subs()
+        snp_TAGC_subs <- snp_TAGC_subs()
         
         #for better visibility, increase tfbs and snp widths -- need scaling factor b/c different genes take up different amounts of space
-        smallest_start <- min(gene_subs$start, tfbs_subs$start, snp_subs$start, snp_eve_subs$start, snp_gabriel_subs$start, snp_fer_subs$start)
-        largest_end <- max(gene_subs$end, tfbs_subs$end, snp_subs$end, snp_eve_subs$end, snp_gabriel_subs$end, snp_fer_subs$end)
+        smallest_start <- min(gene_subs$start, tfbs_subs$start, snp_subs$start, snp_eve_subs$start, snp_gabriel_subs$start, snp_fer_subs$start, snp_TAGC_subs$start)
+        largest_end <- max(gene_subs$end, tfbs_subs$end, snp_subs$end, snp_eve_subs$end, snp_gabriel_subs$end, snp_fer_subs$end, snp_TAGC_subs$end)
         scaling_factor <- (largest_end - smallest_start)/120000
         
         tfbs_subs$end <- tfbs_subs$end + 500*scaling_factor
@@ -658,6 +704,7 @@ server <- shinyServer(function(input, output, session) {
         snp_eve_subs$end <- snp_eve_subs$end + 300*scaling_factor
         snp_gabriel_subs$end <- snp_gabriel_subs$end + 300*scaling_factor
         snp_fer_subs$end <- snp_fer_subs$end + 300*scaling_factor
+        snp_TAGC_subs$end <- snp_TAGC_subs$end + 300*scaling_factor
         
         #constant for all tracks
         gen <- "hg19"
@@ -733,6 +780,21 @@ server <- shinyServer(function(input, output, session) {
             } else {snp_fer_size_init <- 1.4 + 0.1*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_fer_subs)}
         } else {snp_fer_size_init <- 1.4 + 0.1*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_fer_subs)}
         
+        # TAGC SNPs track
+        if (nrow(snp_TAGC_subs) > 0) {
+            pval_choice <- reactive({input$which_TAGC_pvals})  #pval_choice is responsible for dynamically coloring snps based on user selection of population
+            snp_TAGC_track <- Gviz::AnnotationTrack(snp_TAGC_subs, name="SNPs (TAGC)", fill = unlist(snp_TAGC_subs[, paste0("color_", pval_choice())]), col=NULL, feature=snp_TAGC_subs$snp, grid=TRUE, col.grid="darkgrey")
+            
+            #rough estimate of number of stacks there will be in SNP track - for track scaling
+            if (nrow(snp_TAGC_subs) > 1) {
+                snp_TAGC_subs_temp <- snp_TAGC_subs
+                snp_TAGC_range <- max(snp_TAGC_subs_temp$start) - min(snp_TAGC_subs_temp$start)
+                snp_TAGC_subs_temp$start_prev <- c(0, snp_TAGC_subs_temp$start[1:(nrow(snp_TAGC_subs_temp)-1)])
+                snp_TAGC_subs_temp$dist <- as.numeric(snp_TAGC_subs_temp$start) - as.numeric(snp_TAGC_subs_temp$start_prev)
+                snp_TAGC_size_init <- 1.5 + as.numeric(nrow(snp_TAGC_subs[which(snp_TAGC_subs$dist < snp_TAGC_range/10),])) + 0.3*length(unique(gene_subs$transcript))
+            } else {snp_TAGC_size_init <- 1.4 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_TAGC_subs)}
+        } else {snp_TAGC_size_init <- 1.4 + 0.05*length(unique(gene_subs$transcript)) + 0.015*nrow(snp_TAGC_subs)}
+        
         #track sizes - defaults throw off scaling as more tracks are added
         chrom_size <- 1.2 + 0.01*length(unique(gene_subs$transcript)) + 0.01*nrow(snp_subs) + 0.005*nrow(snp_eve_subs) + 0.01*nrow(snp_gabriel_subs)
         axis_size <- 1 + 0.05*length(unique(gene_subs$transcript)) + 0.01*nrow(snp_subs) + 0.005*nrow(snp_eve_subs) + 0.01*nrow(snp_gabriel_subs)
@@ -742,8 +804,9 @@ server <- shinyServer(function(input, output, session) {
         snp_eve_size <- snp_eve_size_init #from above
         snp_gabriel_size <- snp_gabriel_size_init #from above
         snp_fer_size <- snp_fer_size_init #from above
+        snp_TAGC_size <- snp_TAGC_size_init #from above
         
-        # #track sizes - defaults throw off scaling as more tracks are added --- if transcript stacking="dense"
+        # #track sizes - defaults throw off scaling as more tracks are added --- for transcript stacking="dense"
         # chrom_size <- 1 + 0.005*length(unique(gene_subs$transcript)) + 0.005*nrow(snp_subs) + 0.005*nrow(snp_eve_subs) + 0.005*nrow(snp_gabriel_subs)
         # axis_size <- 1.2+ 0.005*length(unique(gene_subs$transcript)) + 0.005*nrow(snp_subs) + 0.005*nrow(snp_eve_subs) + 0.005*nrow(snp_gabriel_subs)
         # gene_size <- 1.75 + 0.005*length(unique(gene_subs$transcript)) + 0.005*nrow(snp_subs) + 0.005*nrow(snp_eve_subs) + 0.005*nrow(snp_gabriel_subs)
@@ -753,7 +816,7 @@ server <- shinyServer(function(input, output, session) {
         # snp_gabriel_size <- snp_gabriel_size_init #from above
         
         #select the non-empty tracks to output -- output depends on whether there are TFBS and/or SNPs for a given gene
-        subset_size <- sapply(c("tfbs_subs", "snp_subs", "snp_eve_subs", "snp_gabriel_subs", "snp_fer_subs"), function(x) {nrow(get(x))}) #size of each subset
+        subset_size <- sapply(c("tfbs_subs", "snp_subs", "snp_eve_subs", "snp_gabriel_subs", "snp_fer_subs", "snp_TAGC_subs"), function(x) {nrow(get(x))}) #size of each subset
         non_zeros <- names(subset_size)[which(!(subset_size==0))] #which subsets have non-zero size
         
         df_extract <- function(x,y) { #gives name of track and track size variable for non-zero subsets (y is "track" or "size")
@@ -764,10 +827,24 @@ server <- shinyServer(function(input, output, session) {
         
         #use df_extract function to get track & track size corresponding to all non-zero subsets
         #note chrom_track, axis_track and gene_track are present for all
-        selected_tracks <- list(chrom_track, axis_track, gene_track, sapply(non_zeros, df_extract, y="track")$tfbs_subs, sapply(non_zeros, df_extract, y="track")$snp_subs, sapply(non_zeros, df_extract, y="track")$snp_eve_subs, sapply(non_zeros, df_extract, y="track")$snp_gabriel_subs, sapply(non_zeros, df_extract, y="track")$snp_fer_subs)
+        selected_tracks <- list(chrom_track, axis_track, gene_track, 
+                                sapply(non_zeros, df_extract, y="track")$tfbs_subs, 
+                                sapply(non_zeros, df_extract, y="track")$snp_subs, 
+                                sapply(non_zeros, df_extract, y="track")$snp_eve_subs, 
+                                sapply(non_zeros, df_extract, y="track")$snp_gabriel_subs, 
+                                sapply(non_zeros, df_extract, y="track")$snp_fer_subs, 
+                                sapply(non_zeros, df_extract, y="track")$snp_TAGC_subs)
+        
         selected_tracks <- Filter(Negate(function(x) is.null(unlist(x))), selected_tracks) #remove null elements from list
         
-        selected_sizes <- na.omit(c(chrom_size,axis_size,gene_size, sapply(non_zeros, df_extract, y="size")[1], sapply(non_zeros, df_extract, y="size")[2], sapply(non_zeros, df_extract, y="size")[3], sapply(non_zeros, df_extract, y="size")[4], sapply(non_zeros, df_extract, y="size")[5]))
+        selected_sizes <- na.omit(c(chrom_size,axis_size,gene_size,
+                                    sapply(non_zeros, df_extract, y="size")[1], 
+                                    sapply(non_zeros, df_extract, y="size")[2], 
+                                    sapply(non_zeros, df_extract, y="size")[3], 
+                                    sapply(non_zeros, df_extract, y="size")[4], 
+                                    sapply(non_zeros, df_extract, y="size")[5],
+                                    sapply(non_zeros, df_extract, y="size")[6]))
+                                  
         selected_sizes <- Filter(Negate(function(x) is.null(unlist(x))), selected_sizes) #remove null elements from list - else run into trouble in conditions when no TFBS & no SNP tracks selected
         #note: use names to extract from selected_tracks b/c it is a list vs. index to extract from selected_sizes, since this is numeric
         
@@ -778,7 +855,7 @@ server <- shinyServer(function(input, output, session) {
     
     #plot height increases if more tracks are displayed
     observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, width=1055,
-                                                    height=400 + 15*length(unique(gene_subs()$transcript)) + 30*nrow(snp_eve_subs()) + 10*(nrow(snp_subs())+nrow(snp_gabriel_subs())+nrow(snp_fer_subs())))})
+                                                    height=400 + 15*length(unique(gene_subs()$transcript)) + 30*nrow(snp_eve_subs()) + 10*(nrow(snp_subs())+nrow(snp_gabriel_subs())+nrow(snp_fer_subs())+nrow(snp_TAGC_subs())))})
     
     
     #################################
@@ -819,9 +896,17 @@ server <- shinyServer(function(input, output, session) {
                 dplyr::select(-c(end, color))
         }
     })
+   
+    snp_TAGC_subs_temp <- reactive({
+        if (nrow(snp_TAGC_subs()) > 0) {
+            snp_TAGC_subs() %>%
+                dplyr::rename(position=start) %>%
+                dplyr::mutate(source = "TAGC") %>%
+                dplyr::select(-c(end, color_p_ran_multi, color_p_ran_euro))
+        }
+    }) 
     
-    
-    snp_data <- reactive({dplyr::bind_rows(snp_subs_temp(), snp_eve_subs_temp(), snp_gabriel_subs_temp(), snp_fer_subs_temp())})
+    snp_data <- reactive({dplyr::bind_rows(snp_subs_temp(), snp_eve_subs_temp(), snp_gabriel_subs_temp(), snp_fer_subs_temp(), snp_TAGC_subs_temp())})
     
     ######################
     ## Download buttons ##
