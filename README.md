@@ -2,7 +2,7 @@
 
 REALGAR is an app that integrates disease-specific, tissue-specific omics results into a tool for designing functional validation studies.  REALGAR uses asthma as a disease model to demonstrate how integrating omics results with GWAS data leads to improved understanding of gene associations.
 
-Authors: Maya Shumyatcher, Blanca Himes.
+Authors: Maya Shumyatcher, Mengyuan Kan, Blanca Himes.
 
 ### Rationale
 
