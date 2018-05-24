@@ -129,7 +129,7 @@ server <- shinyServer(function(input, output, session) {
     
     #Asthma
     asthma_choices <- c("Allergic asthma"="allergic_asthma", "Asthma"="asthma", "Asthma and rhinitis"="asthma_and_rhinitis",
-                        "Fatal asthma"="fatal_asthma", "Mild asthma"="mild_asthma", "Non-allergic asthma"="non_allergic_asthma",
+                        "Fatal asthma"="fatal_asthma", "Mild to Moderate asthma"="mild_to_moderate", "Non-allergic asthma"="non_allergic_asthma",
                         "Severe asthma"="severe_asthma")
     observe({
         if(input$selectall_asthma == 0) return(NULL) 
