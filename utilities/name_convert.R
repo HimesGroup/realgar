@@ -1,5 +1,5 @@
 ###
-# Usage
+# Usage:
 ###
 
 # This script is used for converting short names to full names. Make sure names in each vector are in correct order!
@@ -15,5 +15,5 @@ full_name <- c(tissue_full_name, asthma_full_name, treatment_full_name)
 names(full_name) <- short_name
 
 nameconvert <- function(name) {
-	return(unname(full_name[name]))
+    return(unname(full_name[name]))
 }
