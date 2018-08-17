@@ -1,5 +1,5 @@
 ###
-# Usage
+# Usage:
 ###
 # This script is used to combine p-values using different methods.
 # R codes for sumlog (Fisher's) and sumz (Liptak's) functions are modified from metap package (Michael Dewey, January 22, 2017), for liptak function is modified from Dr. Blanca Himes' codes.
@@ -22,50 +22,50 @@ liptak <- function(t, w){
     pnorm( d*sum(w*qnorm(t)) )
 }
 
-# Combine p-values by the sum of logs method, also known as Fisher’s method, and sometimes as the chi-square (2) method (taken from metaP function sumlog)
+# Combine p-values by the sum of logs method, also known as Fisherâ€™s method, and sometimes as the chi-square (2) method (taken from metaP function sumlog)
 sumlog <- function(p) {
-   keep <- (p > 0) & (p <= 1)
-   lnp <- log(p[keep])
-   chisq <- (-2) * sum(lnp)
-   df <- 2 * length(lnp)
-   if(sum(1L * keep) < 2)
-      stop("Must have at least two valid p values")
-   if(length(lnp) != length(p)) {
-      warning("Some studies omitted")
-   }
-   res <- list(chisq = chisq, df = df,
-      p = pchisq(chisq, df, lower.tail = FALSE), validp = p[keep])
-   return(res)
+    keep <- (p > 0) & (p <= 1)
+    lnp <- log(p[keep])
+    chisq <- (-2) * sum(lnp)
+    df <- 2 * length(lnp)
+    if(sum(1L * keep) < 2)
+        stop("Must have at least two valid p values")
+    if(length(lnp) != length(p)) {
+        warning("Some studies omitted")
+    }
+    res <- list(chisq = chisq, df = df,
+                p = pchisq(chisq, df, lower.tail = FALSE), validp = p[keep])
+    return(res)
 }
 
-# Combine p-values using the sum of p method also known as Edgington’s method
+# Combine p-values using the sum of p method also known as Edgingtonâ€™s method
 sumz <- function(p, weights = NULL, data = NULL, subset = NULL, na.action = na.fail)  {
-   if(is.null(data)) data <- sys.frame(sys.parent())
-   mf <- match.call()
-   mf$data <- NULL
-   mf$subset <- NULL
-   mf$na.action <- NULL
-   mf[[1]] <- as.name("data.frame")
-   mf <- eval(mf, data)
-   if(!is.null(subset)) mf <- mf[subset,]
-   mf <- na.action(mf)
-   p <- as.numeric(mf$p)
-   weights <- mf$weights
-   if(is.null(weights)) weights <- rep(1, length(p))
-   if(length(p) != length(weights)) warning("Length of p and weights differ")
-   keep <- (p > 0) & (p < 1)
-   if(sum(1L * keep) < 2)
-      stop("Must have at least two valid p values")
-   if(sum(1L * keep) != length(p)) {
-      warning("Some studies omitted")
-      omitw <- weights[!keep]
-      if(sum(1L * omitw) > 0) warning("Weights omitted too")
-   }
-   zp <- (qnorm(p[keep], lower.tail = FALSE) %*% weights[keep]) /
-      sqrt(sum(weights[keep]^2))
-   res <- list(z = zp, p = pnorm(zp, lower.tail = FALSE),
-      validp = p[keep], weights = weights)
-   return(res)
+    if(is.null(data)) data <- sys.frame(sys.parent())
+    mf <- match.call()
+    mf$data <- NULL
+    mf$subset <- NULL
+    mf$na.action <- NULL
+    mf[[1]] <- as.name("data.frame")
+    mf <- eval(mf, data)
+    if(!is.null(subset)) mf <- mf[subset,]
+    mf <- na.action(mf)
+    p <- as.numeric(mf$p)
+    weights <- mf$weights
+    if(is.null(weights)) weights <- rep(1, length(p))
+    if(length(p) != length(weights)) warning("Length of p and weights differ")
+    keep <- (p > 0) & (p < 1)
+    if(sum(1L * keep) < 2)
+        stop("Must have at least two valid p values")
+    if(sum(1L * keep) != length(p)) {
+        warning("Some studies omitted")
+        omitw <- weights[!keep]
+        if(sum(1L * omitw) > 0) warning("Weights omitted too")
+    }
+    zp <- (qnorm(p[keep], lower.tail = FALSE) %*% weights[keep]) /
+        sqrt(sum(weights[keep]^2))
+    res <- list(z = zp, p = pnorm(zp, lower.tail = FALSE),
+                validp = p[keep], weights = weights)
+    return(res)
 }
 
 #Liptak-combined p-values, weighted by sample size:

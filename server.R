@@ -1,4 +1,4 @@
-# detach("package:Gviz", unload=TRUE) # this is to keep RStudio happy - run if loading app more than once in same session - keep commented out otherwise
+#detach("package:Gviz", unload=TRUE) # this is to keep RStudio happy - run if loading app more than once in same session - keep commented out otherwise
 # if load Gviz 2x in same session (i.e. close & re-run app), get "object of type 'closure' is not subsettable" error
 # should not be an issue when running app from the website
 # cat(file=stderr(), as.character(Sys.time()),"packages start\n")
@@ -21,14 +21,19 @@ source("/srv/shiny-server/realgar/utilities/comb_pval.R")
 source("/srv/shiny-server/realgar/utilities/name_convert.R")
 
 #
-# load dataset descriptions
-Dataset_Info <- readRDS("/srv/shiny-server/databases/microarray_data_infosheet_R.RDS")
+# load descriptions of all gene expression and GWAS datasets
+Alldata_Info <- readRDS("/srv/shiny-server/databases/Microarray_data_infosheet_R.RDS")
+
+#then split off into gene expression and GWAS dataset info - else forest plot text columns get messed up
+GWAS_Dataset_Info <- Alldata_Info[which(Alldata_Info$App == "GWAS"),]
+Dataset_Info <- Alldata_Info[which(!(Alldata_Info$App == "GWAS")),]
 
 #load and name GEO microarray and RNA-Seq datasets
-for (i in Dataset_Info$Unique_ID) {assign(i, readRDS(paste0("/srv/shiny-server/databases/microarray_results/", i, ".RDS")))}
+for (i in na.omit(Dataset_Info$Unique_ID)) {assign(i, readRDS(paste0("/srv/shiny-server/databases/microarray_results/", i, ".RDS")))}
 
 Dataset_Info$PMID <- as.character(Dataset_Info$PMID) #else next line does not work
 Dataset_Info[is.na(Dataset_Info$PMID), "PMID"] <- ""
+Dataset_Info$Report <- as.character(c("QC"))
 
 #load info for gene tracks: gene locations, TFBS, SNPs, etc.
 tfbs <- readRDS("/srv/shiny-server/databases/tfbs_for_app.RDS") #TFBS data from ENCODE - matched to gene ids using bedtools
@@ -39,6 +44,7 @@ snp_fer <- readRDS("/srv/shiny-server/databases/allerg_GWAS_data_realgar.RDS") #
 snp_TAGC <- readRDS("/srv/shiny-server/databases/TAGC_data_realgar.RDS") #SNP data from TAGC - already in hg19 - matched to gene ids using bedtools
 gene_locations <- fread("/srv/shiny-server/databases/gene_positions.txt", header = TRUE, stringsAsFactors = FALSE) #gene location & transcript data from GENCODE
 chrom_bands <- readRDS("/srv/shiny-server/databases/chrom_bands.RDS") #chromosome band info for ideogram - makes ideogram load 25 seconds faster
+all_genes <- readRDS("/srv/shiny-server/databases/Gene_names.RDS")
 #unlike all other files, gene_locations is faster with fread than with readRDS (2s load, vs 4s)
 
 #compute -log10 for SNPs -- used for SNP colors
@@ -83,13 +89,18 @@ heatmap_colors <-  inferno # heatmap colors - used in p-value plot
 # server
 server <- shinyServer(function(input, output, session) {
     
+   all_genes <- unique(all_genes)
+   genes <- reactive({selectizeInput("current", "Official Gene Symbol or SNP ID:", all_genes, selected="GAPDH", width="185px", options = list(create = TRUE))})
+   output$genesAvail <- renderUI({genes()})
+   
+   current <- reactive({toString(input$current)})
     curr_gene <- reactive({
-        if (gsub(" ", "", tolower(input$curr_gene), fixed=TRUE) %in% c(snp$snp, snp_eve$snp, snp_gabriel$snp, snp_fer$snp, snp_TAGC$snp)) { #if SNP ID is entered, convert internally to nearest gene symbol  
-            all_matches <- rbind(rbind(snp[which(snp$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")], 
-                                       snp_eve[which(snp_eve$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")]), 
-                                 snp_gabriel[which(snp_gabriel$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")],
-                                 snp_fer[which(snp_fer$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")],
-                                 snp_TAGC[which(snp_TAGC$snp==gsub(" ", "", tolower(input$curr_gene), fixed=TRUE)), c("snp", "end", "symbol")])
+        if (gsub(" ", "", tolower(current()), fixed=TRUE) %in% c(snp$snp, snp_eve$snp, snp_gabriel$snp, snp_fer$snp, snp_TAGC$snp)) { #if SNP ID is entered, convert internally to nearest gene symbol  
+            all_matches <- rbind(rbind(snp[which(snp$snp==gsub(" ", "", tolower(current()), fixed=TRUE)), c("snp", "end", "symbol")], 
+                                       snp_eve[which(snp_eve$snp==gsub(" ", "", tolower(current()), fixed=TRUE)), c("snp", "end", "symbol")]), 
+                                 snp_gabriel[which(snp_gabriel$snp==gsub(" ", "", tolower(current()), fixed=TRUE)), c("snp", "end", "symbol")],
+                                 snp_fer[which(snp_fer$snp==gsub(" ", "", tolower(current()), fixed=TRUE)), c("snp", "end", "symbol")],
+                                 snp_TAGC[which(snp_TAGC$snp==gsub(" ", "", tolower(current()), fixed=TRUE)), c("snp", "end", "symbol")])
             gene_locations_unique <- gene_locations[which(!duplicated(gene_locations$symbol)),]
             all_matches <- merge(all_matches, gene_locations_unique[,c("symbol", "start")], by="symbol")
             all_matches$dist <- abs(all_matches$start - all_matches$end) # here, "end" is snp position, "start" is gene start 
@@ -97,7 +108,7 @@ server <- shinyServer(function(input, output, session) {
         } else { 
             # if it is not in the list of snps, it is a gene id OR a snp that is not associated with asthma
             # in the latter case it will not show up in the list of genes & user gets an "enter valid gene/snp id" message
-            gsub(" ", "", toupper(input$curr_gene), fixed = TRUE) #make uppercase, remove spaces
+            gsub(" ", "", toupper(current()), fixed = TRUE) #make uppercase, remove spaces
         }
     })  
     
@@ -114,7 +125,7 @@ server <- shinyServer(function(input, output, session) {
                         "Lymphoblastoid cell" = "LCL","Macrophage" = "MACRO", "MCF10A-Myc" = "MCF10A-Myc",
                         "Nasal epithelium"="NE","Osteosarcoma U2OS cell" = "U2O", 
                         "Peripheral blood mononuclear cell"="PBMC","Small airway epithelium"="SAE",
-                        "White blood cell"="WBC","Whole lung"="Lung")
+                        "White blood cell"="WBC","Whole lung"="Lung","Blood"="Blood")
     observe({
         if(input$selectall_tissue == 0) return(NULL) # don't do anything if action button has been clicked 0 times
         else if (input$selectall_tissue%%2 == 0) { # %% means "modulus" - i.e. here you're testing if button has been clicked a multiple of 2 times
@@ -128,9 +139,10 @@ server <- shinyServer(function(input, output, session) {
     
     
     #Asthma
-    asthma_choices <- c("Allergic asthma"="allergic_asthma", "Asthma"="asthma", "Asthma and rhinitis"="asthma_and_rhinitis",
-                        "Fatal asthma"="fatal_asthma", "Mild to Moderate asthma"="mild_to_moderate", "Non-allergic asthma"="non_allergic_asthma",
-                        "Severe asthma"="severe_asthma")
+    asthma_choices <- c("Allergic asthma vs Healthy"="allergic_asthma", "Asthma vs Healthy"="asthma", "Asthma and rhinitis"="asthma_and_rhinitis",
+                        "Fatal asthma vs Healthy"="fatal_asthma", "Mild to Moderate asthma vs Healthy"="mild_to_moderate", 
+                        "Non-allergic asthma"="non_allergic_asthma",
+                        "Severe asthma vs Healthy"="severe_asthma", "Obese Asthma vs Normal-weight Asthma"="obese_asthma")
     observe({
         if(input$selectall_asthma == 0) return(NULL) 
         else if (input$selectall_asthma%%2 == 0) {
@@ -157,7 +169,7 @@ server <- shinyServer(function(input, output, session) {
         }})
     
     #GWAS
-    GWAS_choices <- c("EVE"="snp_eve_subs", "Ferreira"="snp_fer_subs", "GABRIEL"="snp_gabriel_subs", "GRASP"="snp_subs", "TAGC Consortium"="snp_TAGC_subs")
+    GWAS_choices <- c("EVE"="snp_eve_subs", "Ferreira"="snp_fer_subs", "GABRIEL"="snp_gabriel_subs", "GRASP"="snp_subs", "TAGC"="snp_TAGC_subs")
     
     observe({
         if(input$selectall_GWAS == 0) return(NULL) 
@@ -250,33 +262,68 @@ server <- shinyServer(function(input, output, session) {
     notavail_text <- reactive({text=""})
     output$notavail_choice = renderText(notavail_text())
     
-    
+    # gene expression (GEO) studies table
     #add links for GEO_ID and PMID
     GEO_data <- reactive({
-        validate(need(nrow(UserDataset_Info()) != 0, "Please choose at least one dataset.")) #Generate a error message when no data is loaded.
+        validate(need(nrow(UserDataset_Info()) != 0, "No gene expression datasets selected")) #Generate a error message when no data is loaded.
         
         UserDataset_Info() %>%
             dplyr::mutate(GEO_ID_link = ifelse(grepl("SRP", GEO_ID), #GEO link is conditional on whether GEO_ID is an "SRP" or "GSE"
                                                paste0("http://www.ncbi.nlm.nih.gov/sra/?term=", GEO_ID), 
-                                               paste0("http://www.ncbi.nlm.nih.gov/gquery/?term=", GEO_ID)),
-                          PMID_link = paste0("http://www.ncbi.nlm.nih.gov/pubmed/?term=", PMID))})
+                                               paste0("https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=", GEO_ID)),
+                          PMID_link = paste0("http://www.ncbi.nlm.nih.gov/pubmed/?term=", PMID),
+                          QC_link = ifelse(grepl("SRP", GEO_ID), #QC link is conditional on whether GEO_ID is an "SRP" or "GSE"
+                                 paste0("http://public.himeslab.org/realgar_qc/",GEO_ID,"_QC_RnaSeqReport.html"), 
+                                 paste0("http://public.himeslab.org/realgar_qc/",GEO_ID,"_QC_report.html")))})
     
     
     
-    Dataset <- reactive({paste0("<a href='",  GEO_data()$GEO_ID_link, "' target='_blank'>",GEO_data()$GEO_ID,"</a>")})
-    PMID <- reactive({paste0("<a href='",  GEO_data()$PMID_link, "' target='_blank'>",GEO_data()$PMID,"</a>")})
-    Description <- reactive({GEO_data()$Description})
+    GEO_Dataset <- reactive({paste0("<a href='",  GEO_data()$GEO_ID_link, "' target='_blank'>",GEO_data()$GEO_ID,"</a>")})
+    GEO_PMID <- reactive({paste0("<a href='",  GEO_data()$PMID_link, "' target='_blank'>",GEO_data()$PMID,"</a>")})
+    GEO_Description <- reactive({GEO_data()$Description})
+    GEO_Report <- reactive({paste0("<a href='",  GEO_data()$QC_link, "' target='_blank'>",GEO_data()$Report,"</a>")})
+    
     
     GEO_links <- reactive({
-        df <- data.frame(Dataset(), PMID(), Description())
-        colnames(df) <- c("Dataset", "PMID", "Description")
-        df})
+        #df <- data.frame(GEO_Dataset(), GEO_PMID(), GEO_Description())
+        df <- data.frame(GEO_Dataset(), GEO_PMID(),GEO_Report(), GEO_Description())
+        colnames(df) <- c("Dataset", "PMID", "Report","Description")
+        #colnames(df) <- c("Dataset", "PMID","Description")
+        df
+    })
     
+    # gwas studies table
+
+    GWAS_data <- reactive({
+      df <- GWAS_Dataset_Info[which(GWAS_Dataset_Info$Tissue %in% input$which_SNPs),c("GEO_ID", "PMID","Description")]
+      validate(need(nrow(df) != 0, "No GWAS datasets selected")) #Generate a error message when no data is loaded.
+      colnames(df) <- c("Dataset", "Link","Description") # I put the link for the study into the PMID column of the spreadsheet for convenience - change later?
+      df
+    })
+    
+    GWAS_Dataset <- reactive({paste0("<a href='",  GWAS_data()$Link, "' target='_blank'>",GWAS_data()$Dataset,"</a>")})
+    GWAS_Description <- reactive({GWAS_data()$Description})
+    
+    GWAS_links <- reactive ({
+      df <- data.frame(GWAS_Dataset(), GWAS_Description())
+      colnames(df) <- c("Dataset", "Description")
+      df
+    })
+    
+    
+    #table output for "Datasets Loaded" tab
     output$GEO_table <- DT::renderDataTable(GEO_links(),  
                                             class = 'cell-border stripe', 
                                             rownames = FALSE, 
                                             options = list(paging = FALSE, searching = FALSE),
-                                            escape=FALSE)
+                                            escape = FALSE)
+    
+    output$GWAS_table <- DT::renderDataTable(GWAS_links(),
+                                             class = 'cell-border stripe',
+                                             rownames = FALSE,
+                                             options = list(paging = FALSE, searching = FALSE), 
+                                             escape = FALSE)
+    
     #########################################
     ## Select GEO data for plots and table ##
     #########################################
@@ -380,6 +427,7 @@ server <- shinyServer(function(input, output, session) {
     })
     
     output$GC_pcomb_text <- renderText({GC_pcomb()})
+    
     ###################################
     ##          Meta-analysis        ##
     ###################################
