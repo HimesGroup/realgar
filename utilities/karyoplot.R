@@ -1,5 +1,6 @@
-library(karyoploteR, quietly = T) #Need R > 3.5
-library(TxDb.Hsapiens.UCSC.hg38.knownGene, quietly = T)
+# Load libaries in global.R
+#library(karyoploteR, quietly = T) #Need R > 3.5
+#library(TxDb.Hsapiens.UCSC.hg38.knownGene, quietly = T)
 
 # Data Loading
 
@@ -92,7 +93,10 @@ track_plot_func <- function(r0, histone.marks, base.url, start, label_name, colo
 }
 
 ## KaryoplotR function
-make_karyoplot <- function(region, ggwas_df, eve_gwas_df, gabriel_gwas_df, fer_gwas_df, tagc_gwas_df, ukbb_gwas_df){
+make_karyoplot <- function(region, ggwas_df, gabriel_gwas_df, fer_gwas_df,
+                           eve_gwas_all_df, eve_gwas_ea_df, eve_gwas_aa_df, eve_gwas_la_df, 
+                           tagc_gwas_multi_df, tagc_gwas_eur_df,
+                           ukbb_gwas_asthma_df, ukbb_gwas_copd_df, ukbb_gwas_aco_df){
   
   #Plot margins
   ## Plot karyoplotR
@@ -188,30 +192,67 @@ make_karyoplot <- function(region, ggwas_df, eve_gwas_df, gabriel_gwas_df, fer_g
   
   #Get GWAS SNPS
   ## Add GWAS data
-  #EVE
-  if(!is.null(eve_gwas_df) & length(eve_gwas_df) > 0){
+  #EVE ALL
+  if(!is.null(eve_gwas_all_df) & length(eve_gwas_all_df) > 0){
     r0=r1+0.01
     r1=r0+0.06
     
     #Convert data
-    eve_gwas_df$color <- ifelse(is.na(eve_gwas_df$color),"#000000",eve_gwas_df$color)
-    eve_gwas <- toGRanges(eve_gwas_df)
+    eve_gwas_all_df$color <- ifelse(is.na(eve_gwas_all_df$color),"#000000",eve_gwas_all_df$color)
+    eve_gwas <- toGRanges(eve_gwas_all_df)
     
     #Lines
     kpPlotRegions(kp, data = eve_gwas,col=eve_gwas$color, r0=r0, r1=r1-0.03, cex=4.5,srt=90)
     kpPlotMarkers(kp, data = eve_gwas, labels = as.character(eve_gwas$snp), r0=r0, r1=r1, cex=0.8,
                   label.margin = 0.035,text.orientation = "horizontal",adjust.label.position=T,line.color = eve_gwas$color)
-    kpAddLabels(kp, labels = "EVE", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)}
+    kpAddLabels(kp, labels = "EVE_ALL", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)}
     
-    #points
-    # ymax = ceiling(max(eve_gwas$neg_log_p))
-    # if(length(eve_gwas)==1){
-    #   ymin = 0
-    # } else {ymin = floor(min(eve_gwas$neg_log_p))}
-    # kpPoints(kp, chr=eve_gwas$chromosome, x=eve_gwas$start, y=eve_gwas$neg_log_p, data.panel=1, ymin=ymin, ymax=ymax, col="black",bg=eve_gwas$color,r0=r0, r1=r1, pch=21, cex=1.0)
-    # kpText(kp, chr=eve_gwas$chromosome, x=eve_gwas$start, y=eve_gwas$neg_log_p+(ymax-ymin)/5, ymin=ymin, ymax=ymax, r0=r0, r1=r1, labels=eve_gwas$snp, col="blue", cex=1.0)
-    # kpAddLabels(kp, labels = "EVE\nGWAS", label.margin = 0.035, r0=r0, r1=r1, cex=1.0)}
+  #EVE EA
+  if(!is.null(eve_gwas_ea_df) & length(eve_gwas_ea_df) > 0){
+    r0=r1+0.01
+    r1=r0+0.06
+    
+    #Convert data
+    eve_gwas_ea_df$color <- ifelse(is.na(eve_gwas_ea_df$color),"#000000",eve_gwas_ea_df$color)
+    eve_gwas <- toGRanges(eve_gwas_ea_df)
+    
+    #Lines
+    kpPlotRegions(kp, data = eve_gwas,col=eve_gwas$color, r0=r0, r1=r1-0.03, cex=4.5,srt=90)
+    kpPlotMarkers(kp, data = eve_gwas, labels = as.character(eve_gwas$snp), r0=r0, r1=r1, cex=0.8,
+                  label.margin = 0.035,text.orientation = "horizontal",adjust.label.position=T,line.color = eve_gwas$color)
+    kpAddLabels(kp, labels = "EVE_EA", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)}
   
+  #EVE AA
+  if(!is.null(eve_gwas_aa_df) & length(eve_gwas_aa_df) > 0){
+    r0=r1+0.01
+    r1=r0+0.06
+    
+    #Convert data
+    eve_gwas_aa_df$color <- ifelse(is.na(eve_gwas_aa_df$color),"#000000",eve_gwas_aa_df$color)
+    eve_gwas <- toGRanges(eve_gwas_aa_df)
+    
+    #Lines
+    kpPlotRegions(kp, data = eve_gwas,col=eve_gwas$color, r0=r0, r1=r1-0.03, cex=4.5,srt=90)
+    kpPlotMarkers(kp, data = eve_gwas, labels = as.character(eve_gwas$snp), r0=r0, r1=r1, cex=0.8,
+                  label.margin = 0.035,text.orientation = "horizontal",adjust.label.position=T,line.color = eve_gwas$color)
+    kpAddLabels(kp, labels = "EVE_AA", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)}
+
+  #EVE LA
+  if(!is.null(eve_gwas_la_df) & length(eve_gwas_la_df) > 0){
+    r0=r1+0.01
+    r1=r0+0.06
+    
+    #Convert data
+    eve_gwas_la_df$color <- ifelse(is.na(eve_gwas_la_df$color),"#000000",eve_gwas_la_df$color)
+    eve_gwas <- toGRanges(eve_gwas_la_df)
+    
+    #Lines
+    kpPlotRegions(kp, data = eve_gwas,col=eve_gwas$color, r0=r0, r1=r1-0.03, cex=4.5,srt=90)
+    kpPlotMarkers(kp, data = eve_gwas, labels = as.character(eve_gwas$snp), r0=r0, r1=r1, cex=0.8,
+                  label.margin = 0.035,text.orientation = "horizontal",adjust.label.position=T,line.color = eve_gwas$color)
+    kpAddLabels(kp, labels = "EVE_LA", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)}
+  
+    
   #FER
   if(!is.null(fer_gwas_df) & length(fer_gwas_df) > 0){
     r0=r1+0.01
@@ -227,16 +268,7 @@ make_karyoplot <- function(region, ggwas_df, eve_gwas_df, gabriel_gwas_df, fer_g
                   label.margin = 0.035,text.orientation = "horizontal",adjust.label.position=T,line.color=fer_gwas$color)
     kpAddLabels(kp, labels = "FERREIRA", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)}
   
-    #points
-    # ymax = ceiling(max(fer_gwas$neg_log_p))
-    # if(length(fer_gwas)==1){
-    #   ymin = 0
-    # } else {ymin = floor(min(fer_gwas$neg_log_p))}
-    # kpPoints(kp, chr=fer_gwas$chromosome, x=fer_gwas$start, y=fer_gwas$neg_log_p, data.panel=1, ymin=0, ymax=5, col="black",bg=fer_gwas$color,r0=r0, r1=r1, pch=21, cex=1.0)
-    # kpText(kp, chr=fer_gwas$chromosome, x=fer_gwas$start, y=fer_gwas$neg_log_p+(ymax-ymin)/5, ymin=0, ymax=5, r0=r0, r1=r1, labels=fer_gwas$snp, col="blue", cex=1.0,avoid.overlapping=T)
-    # kpAddLabels(kp, labels = "FERREIRA\nGWAS", label.margin = 0.035, r0=r0, r1=r1, cex=1.0)}
-    # 
-  
+
   #GABRIEL
   if(!is.null(gabriel_gwas_df) & length(gabriel_gwas_df) > 0){
     r0=r1+0.01
@@ -252,15 +284,7 @@ make_karyoplot <- function(region, ggwas_df, eve_gwas_df, gabriel_gwas_df, fer_g
                   label.margin = 0.035,text.orientation = "horizontal",adjust.label.position=T, line.color=gabriel_gwas$color)
     kpAddLabels(kp, labels = "GABRIEL", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)}
   
-  #points
-  # kpPoints(kp, chr=gabriel_gwas$chromosome, x=gabriel_gwas$start, y=gabriel_gwas$neg_log_p, data.panel=1, ymin=ymin, ymax=ymax, col="black",bg=gabriel_gwas$color,r0=r0, r1=r1, pch=21, cex=1.0)
-  # kpText(kp, chr=gabriel_gwas$chromosome, x=gabriel_gwas$start, y=gabriel_gwas$neg_log_p+(ymax-ymin)/5, ymin=ymin, ymax=ymax, r0=r0, r1=r1, labels=gabriel_gwas$snp, col="blue", cex=1.0)
-  # kpAddLabels(kp, labels = "GABRIEL\nGWAS", label.margin = 0.035, r0=r0, r1=r1, cex=1.0)}
-  # ymax = ceiling(max(gabriel_gwas$neg_log_p))
-  # if(length(gabriel_gwas)==1){
-  #   ymin = 0
-  # } else {ymin = floor(min(gabriel_gwas$neg_log_p))}
-  
+ 
   #GRASP
   if(!is.null(ggwas_df) & length(ggwas_df) > 0){
     r0=r1+0.01
@@ -276,30 +300,37 @@ make_karyoplot <- function(region, ggwas_df, eve_gwas_df, gabriel_gwas_df, fer_g
                   label.margin = 0.035,text.orientation = "horizontal",adjust.label.position=T,line.color=ggwas$color)
     kpAddLabels(kp, labels = "GRASP", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)}
   
-  #Points
-  # ymax = ceiling(max(ggwas$neg_log_p))
-  # if(length(ggwas)==1){
-  #   ymin = 0
-  # } else {ymin = floor(min(ggwas$neg_log_p))}
-  # 
-  # kpPoints(kp, chr=ggwas$chromosome, x=ggwas$start, y=ggwas$neg_log_p, data.panel=1, ymin=ymin, ymax=ymax, col="black",bg=ggwas$color,r0=r0, r1=r1, pch=21, cex=1.0)
-  # kpText(kp, chr=ggwas$chromosome, x=ggwas$start, y=ggwas$neg_log_p+(ymax-ymin)/5, ymin=ymin, ymax=ymax, r0=r0, r1=r1, labels=ggwas$snp, col="blue", cex=1.0)
-  # kpAddLabels(kp, labels = "GRASP\nGWAS", label.margin = 0.035, r0=r0, r1=r1, pos=1,cex=1.0)}
-  
-  #TAGC
-  if(!is.null(tagc_gwas_df) & length(tagc_gwas_df) > 0){
+
+  #TAGC multi-ethnic groups
+  if(!is.null(tagc_gwas_multi_df) & length(tagc_gwas_multi_df) > 0){
     r0=r1+0.01
     r1=r0+0.06
     
     #Convert data
-    tagc_gwas_df$color <- ifelse(is.na(tagc_gwas_df$color),"#000000",tagc_gwas_df$color)
-    tagc_gwas <- toGRanges(tagc_gwas_df)
+    tagc_gwas_multi_df$color <- ifelse(is.na(tagc_gwas_multi_df$color),"#000000",tagc_gwas_multi_df$color)
+    tagc_gwas <- toGRanges(tagc_gwas_multi_df)
     
     #Lines
     kpPlotRegions(kp, data = tagc_gwas,col=tagc_gwas$color, r0=r0, r1=r1-0.03, cex=5.0,srt=90)
     kpPlotMarkers(kp, data = tagc_gwas, labels = as.character(tagc_gwas$snp), r0=r0, r1=r1, cex=0.8,
                   label.margin = 0.035,text.orientation = "horizontal",adjust.label.position=T,line.color=tagc_gwas$color)
-    kpAddLabels(kp, labels = "TAGC", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)}
+    kpAddLabels(kp, labels = "TAGC_Mutli", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)}
+
+  #TAGC European population
+  if(!is.null(tagc_gwas_eur_df) & length(tagc_gwas_eur_df) > 0){
+    r0=r1+0.01
+    r1=r0+0.06
+    
+    #Convert data
+    tagc_gwas_eur_df$color <- ifelse(is.na(tagc_gwas_eur_df$color),"#000000",tagc_gwas_eur_df$color)
+    tagc_gwas <- toGRanges(tagc_gwas_eur_df)
+    
+    #Lines
+    kpPlotRegions(kp, data = tagc_gwas,col=tagc_gwas$color, r0=r0, r1=r1-0.03, cex=5.0,srt=90)
+    kpPlotMarkers(kp, data = tagc_gwas, labels = as.character(tagc_gwas$snp), r0=r0, r1=r1, cex=0.8,
+                  label.margin = 0.035,text.orientation = "horizontal",adjust.label.position=T,line.color=tagc_gwas$color)
+    kpAddLabels(kp, labels = "TAGC_EUR", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)}
+  
     
     #points
     # ymax = ceiling(max(tagc_gwas$neg_log_p))
@@ -334,22 +365,55 @@ make_karyoplot <- function(region, ggwas_df, eve_gwas_df, gabriel_gwas_df, fer_g
   #   kpAddLabels(kp, labels = "GWAS", r0=0.1, r1=r1, cex=1.5, srt=90, pos=1, label.margin = 0.14)
   # }
   
-  #UKBB
-  if(!is.null(ukbb_gwas_df) & length(ukbb_gwas_df) > 0){
+  #UKBB asthma
+  if(!is.null(ukbb_gwas_asthma_df) & length(ukbb_gwas_asthma_df) > 0){
     r0=r1+0.01
     r1=r0+0.06
     
     #Convert data
-    ukbb_gwas_df$color <- ifelse(is.na(ukbb_gwas_df$color),"#000000",ukbb_gwas_df$color)
-    ukbb_gwas <- toGRanges(ukbb_gwas_df)
+    ukbb_gwas_asthma_df$color <- ifelse(is.na(ukbb_gwas_asthma_df$color),"#000000",ukbb_gwas_asthma_df$color)
+    ukbb_gwas <- toGRanges(ukbb_gwas_asthma_df)
     
     #Lines
     kpPlotRegions(kp, data = ukbb_gwas,col=ukbb_gwas$color, r0=r0, r1=r1-0.03, cex=5.0,srt=90)
     kpPlotMarkers(kp, data = ukbb_gwas, labels = as.character(ukbb_gwas$snp), r0=r0, r1=r1, cex=0.8,
                   label.margin = 0.035,text.orientation = "horizontal",adjust.label.position=T,line.color=ukbb_gwas$color)
-    kpAddLabels(kp, labels = "UKBiobank", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)
+    kpAddLabels(kp, labels = "UKBB_asthma", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)
     }
+
+  #UKBB COPD
+  if(!is.null(ukbb_gwas_copd_df) & length(ukbb_gwas_copd_df) > 0){
+    r0=r1+0.01
+    r1=r0+0.06
+    
+    #Convert data
+    ukbb_gwas_copd_df$color <- ifelse(is.na(ukbb_gwas_copd_df$color),"#000000",ukbb_gwas_copd_df$color)
+    ukbb_gwas <- toGRanges(ukbb_gwas_copd_df)
+    
+    #Lines
+    kpPlotRegions(kp, data = ukbb_gwas,col=ukbb_gwas$color, r0=r0, r1=r1-0.03, cex=5.0,srt=90)
+    kpPlotMarkers(kp, data = ukbb_gwas, labels = as.character(ukbb_gwas$snp), r0=r0, r1=r1, cex=0.8,
+                  label.margin = 0.035,text.orientation = "horizontal",adjust.label.position=T,line.color=ukbb_gwas$color)
+    kpAddLabels(kp, labels = "UKBB_COPD", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)
+  }
+
+  #UKBB ACO
+  if(!is.null(ukbb_gwas_aco_df) & length(ukbb_gwas_aco_df) > 0){
+    r0=r1+0.01
+    r1=r0+0.06
+    
+    #Convert data
+    ukbb_gwas_aco_df$color <- ifelse(is.na(ukbb_gwas_aco_df$color),"#000000",ukbb_gwas_aco_df$color)
+    ukbb_gwas <- toGRanges(ukbb_gwas_aco_df)
+    
+    #Lines
+    kpPlotRegions(kp, data = ukbb_gwas,col=ukbb_gwas$color, r0=r0, r1=r1-0.03, cex=5.0,srt=90)
+    kpPlotMarkers(kp, data = ukbb_gwas, labels = as.character(ukbb_gwas$snp), r0=r0, r1=r1, cex=0.8,
+                  label.margin = 0.035,text.orientation = "horizontal",adjust.label.position=T,line.color=ukbb_gwas$color)
+    kpAddLabels(kp, labels = "UKBB_ACO", label.margin = 0.035, r0=r0, r1=r1, cex=1.2)
+  }
   
+    
   #Get GR gre sites
   #Add gre Data
   r0 = r1 + 0.01

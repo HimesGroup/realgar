@@ -13,7 +13,7 @@ library(feather)
 #Alldata_Info <- read_feather("/mnt/volume_nyc1_01/data/Microarray_data_infosheet_latest_R.feather")
 #Alldata_Info <- read.csv("Microarray_data_infosheet_latest_R.csv")
 #Alldata_Info <- read_feather("/home/avantika/shiny_apps/main_database/realgar_data/results/Microarray_data_infosheet_latest_R.feather")
-Alldata_Info <- read.csv("realgar_data/Microarray_data_infosheet_latest_R.csv")
+Alldata_Info <- read_feather("/mnt/volume_nyc3_01/realgar_data/Microarray_data_infosheet_latest_R.feather")
 
 #then split off into gene expression and GWAS dataset info - else forest plot text columns get messed up
 GWAS_Dataset_Info <- Alldata_Info[which(Alldata_Info$App == "GWAS"),]
@@ -25,7 +25,7 @@ Total_Info <- Dataset_Info %>% dplyr::select(Unique_ID,Total,App)
 ## Read in datafiles for transcriptomics studies
 #load and name GEO microarray and RNA-Seq datasets
 #/mnt/volume_nyc1_01/data/
-db = dbConnect(SQLite(), dbname="realgar_data/results/realgar-omics.sqlite") #realgar-db.sqlite
+db = dbConnect(SQLite(), dbname="/mnt/volume_nyc3_01/realgar_data/results/realgar-omics.sqlite") #save realgar-db.sqlite to another place
 
 # List tables in your database
 dbListTables(db)
@@ -58,7 +58,8 @@ data_filter <- function(x){
 
 # Write new files to database 
 # Use f instead of new_files if you want to re-write the whole database. This will take around 10 minutes
-for (i in f){
+f_sel <- f[which(grepl("SRP277255|GSE34607", f))] # add new datasets
+for (i in f_sel){
   d = read_feather(paste0(path, i,".feather"))
   names(d) <- gsub("[.]","",names(d))
   data <- cbind(Unique_ID = i,d)
@@ -77,4 +78,6 @@ dbListFields(db, "REALGAR")
 
 #Disconnect
 dbDisconnect(db)
+
+# if sqlite database is prepared, you can move it to original place: /mnt/volume_nyc3_01/realgar_data
 
