@@ -69,12 +69,18 @@ for (i in f_sel){
   dbWriteTable(conn=db, name="REALGAR", final_data, append=T, row.names=F)
 }
 
+# update fields
+# dbGetQuery(db, "SELECT * FROM REALGAR WHERE Unique_ID = 'GSE34607_BEAS-2B_nonasthma_IndoorExposure_4h_vs_control_4h' LIMIT 10")
+# dbExecute(db, "UPDATE REALGAR SET App='Smoking' WHERE Unique_ID='GSE34607_BEAS-2B_nonasthma_IndoorExposure_4h_vs_control_4h'")
 
 #Check table
 dbListTables(db)
 
 # List columns in a table
 dbListFields(db, "REALGAR")
+
+# print out table
+#dat <- dbReadTable(db, "REALGAR")
 
 #Disconnect
 dbDisconnect(db)

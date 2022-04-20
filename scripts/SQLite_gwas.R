@@ -6,55 +6,128 @@ library(dbplyr)
 library(feather)
 library(viridis)
 
-#Read in files
-#load info for gene tracks: gene locations, SNPs, etc.with gene mappings
+# Read in GWAS SNP files
+# Original files are save under the lab server: /projects/AsthmaApp/REALGAR/GWAS/hg38_annot/[study].hg38.realgar.final.bed.
+# The files are transferred to the R server: /mnt/volume_nyc3_01/realgar_files/hg38_annot
 
-#Gene locations (Run the following codes once)-----------
-# gene_locations <- readRDS("/mnt/volume_nyc3_01/realgar_files/RDS_hg38/gene_locations_hg38.RDS")
-# gene_locations <- gene_locations %>% dplyr::mutate(chromosome = paste0("chr",chromosome)) 
-# 
-# #save for app
-# genes <- gene_locations %>% 
-#   dplyr::select(chromosome,start,end,strand,symbol) %>% 
-#   dplyr::rename("Chromosome"="chromosome","Start"="start","End"="end") %>% 
-#   unique()
-# saveRDS(genes, "/home/avantika/gene_symbol_coords_hg38.RDS") # mv to /mnt/volume_nyc3_01/realgar_data/
-#-----------
+readbed_func <- function(bed_fn) {
+  dat <- read.table(bed_fn, header=T, sep="\t", comment.char = "")
+  names(dat)[1] <- "chromosome"
+  return(dat)
+}
 
-#SNP data from GRASP - lifted over from hg19 to hg38 - matched to gene symbols using bedtools 
-snp <- readRDS("/mnt/volume_nyc3_01/realgar_files/RDS_hg38/grasp_output_for_app.hg38.RDS") %>%
-  dplyr::rename(meta_P=p)
+#SNP data from GRASP
+snp_fn <- "/mnt/volume_nyc3_01/realgar_files/hg38_annot/GRASP.hg38.realgar.final.bed"
+snp <- readbed_func(snp_fn) %>%
+  dplyr::rename(meta_P=pval) %>%
+  dplyr::select(chromosome, end, SNP, symbol, meta_P, pmid) %>%
+  dplyr::filter(!is.na(meta_P)&meta_P!="") %>%
+  unique() %>%
+  dplyr::arrange(chromosome, end)
 
-#SNP data from EVE - lifted over from hg19 to hg38 - matched to gene symbols using bedtools 
-snp_eve <- readRDS("/mnt/volume_nyc3_01/realgar_files/RDS_hg38/eve_data_realgar.hg38.RDS")
-snp_eve_all <- snp_eve %>% dplyr::select("chromosome","start","end","snp","meta_P", "symbol", "eqtl_lung", "eqtl_blood", "eqtl_muscle") %>% dplyr::filter(!is.na(meta_P))
-snp_eve_ea <- snp_eve %>% dplyr::select("chromosome","start","end","snp","meta_P_EA", "symbol", "eqtl_lung", "eqtl_blood", "eqtl_muscle") %>% dplyr::rename(meta_P=meta_P_EA) %>% dplyr::filter(!is.na(meta_P))
-snp_eve_aa <- snp_eve %>% dplyr::select("chromosome","start","end","snp","meta_P_AA", "symbol", "eqtl_lung", "eqtl_blood", "eqtl_muscle") %>% dplyr::rename(meta_P=meta_P_AA) %>% dplyr::filter(!is.na(meta_P))
-snp_eve_la <- snp_eve %>% dplyr::select("chromosome","start","end","snp","meta_P_LAT", "symbol", "eqtl_lung", "eqtl_blood", "eqtl_muscle") %>% dplyr::rename(meta_P=meta_P_LAT) %>% dplyr::filter(!is.na(meta_P))
+#SNP data from EVE
+snp_eve_fn <- "/mnt/volume_nyc3_01/realgar_files/hg38_annot/EVE.hg38.realgar.final.bed"
+snp_eve <- readbed_func(snp_eve_fn)
+
+snp_eve_all <- snp_eve %>%
+  dplyr::select(chromosome, end, SNP, symbol, meta.p) %>%
+  dplyr::rename(meta_P=meta.p) %>%
+  dplyr::filter(!is.na(meta_P)&meta_P!="") %>%
+  unique() %>%
+  dplyr::arrange(chromosome, end)
 
 
-#SNP data from GABRIEL - lifted over from hg19 to hg38 - matched to gene symbols using bedtools 
-snp_gabriel <- readRDS("/mnt/volume_nyc3_01/realgar_files/RDS_hg38/gabriel_data_realgar.hg38.RDS") %>%
-  dplyr::rename(meta_P=P_ran)
+snp_eve_ea <- snp_eve %>%
+  dplyr::select(chromosome, end, SNP, symbol, EA.p) %>%
+  dplyr::rename(meta_P=EA.p) %>%
+  dplyr::filter(!is.na(meta_P)&meta_P!="") %>%
+  unique() %>%
+  dplyr::arrange(chromosome, end)
 
-#SNP data from Ferreira - lifted over from hg19 to hg38 - matched to gene symbols using bedtools 
-snp_fer <- readRDS("/mnt/volume_nyc3_01/realgar_files/RDS_hg38/allerg_GWAS_data_realgar.hg38.RDS") %>%
-  dplyr::rename(meta_P=PVALUE)
 
-#SNP data from TAGC - lifted over from hg19 to hg38 - matched to gene symbols using bedtools 
-snp_TAGC <- readRDS("/mnt/volume_nyc3_01/realgar_files/RDS_hg38/TAGC_data_realgar.hg38.RDS")
-snp_TAGC_multi <- snp_TAGC %>% dplyr::select("chromosome","start","end","snp","p_ran_multi", "symbol", "eqtl_lung", "eqtl_blood", "eqtl_muscle") %>%
-  dplyr::rename(meta_P=p_ran_multi) %>% dplyr::filter(!is.na(meta_P))
+snp_eve_aa <- snp_eve %>%
+  dplyr::select(chromosome, end, SNP, symbol, AA.p) %>%
+  dplyr::rename(meta_P=AA.p) %>%
+  dplyr::filter(!is.na(meta_P)&meta_P!="") %>%
+  unique() %>%
+  dplyr::arrange(chromosome, end)
 
-snp_TAGC_euro <- snp_TAGC %>% dplyr::select("chromosome","start","end","snp","p_ran_euro", "symbol", "eqtl_lung", "eqtl_blood", "eqtl_muscle") %>%
-  dplyr::rename(meta_P=p_ran_euro) %>% dplyr::filter(!is.na(meta_P))
 
-#SNP data from UKBB - asthma, copd, aco results combined - matched to gene symbols using bedtools
-snp_UKBB_asthma <- readRDS("/mnt/volume_nyc3_01/realgar_files/RDS_hg38/ukbb.asthma.sig.hg38.RDS") %>%
-  dplyr::rename(meta_P=P) %>% dplyr::filter(!is.na(meta_P))
-snp_UKBB_copd <- readRDS("/mnt/volume_nyc3_01/realgar_files/RDS_hg38/ukbb.copd.sig.hg38.RDS") %>%  dplyr::rename(meta_P=P) %>% dplyr::filter(!is.na(meta_P))
-snp_UKBB_aco <- readRDS("/mnt/volume_nyc3_01/realgar_files/RDS_hg38/ukbb.aco.sig.hg38.RDS") %>%
-  dplyr::rename(meta_P=P) %>% dplyr::filter(!is.na(meta_P))
+snp_eve_la <- snp_eve %>%
+  dplyr::select(chromosome, end, SNP, symbol, LA.p) %>%
+  dplyr::rename(meta_P=LA.p) %>%
+  dplyr::filter(!is.na(meta_P)&meta_P!="") %>%
+  unique() %>%
+  dplyr::arrange(chromosome, end)
+
+
+#SNP data from GABRIEL
+snp_gabriel_fn <- "/mnt/volume_nyc3_01/realgar_files/hg38_annot/GABRIEL.hg38.realgar.final.bed"
+snp_gabriel <- readbed_func(snp_gabriel_fn) %>%
+  dplyr::select(chromosome, end, SNP, symbol, meta.p) %>%
+  dplyr::rename(meta_P=meta.p) %>%
+  dplyr::filter(!is.na(meta_P)&meta_P!="") %>%
+  unique() %>%
+  dplyr::arrange(chromosome, end)
+
+
+#SNP data from Ferreira
+snp_fer_fn <- "/mnt/volume_nyc3_01/realgar_files/hg38_annot/Ferreira.hg38.realgar.final.bed"
+snp_fer <- readbed_func(snp_fer_fn) %>%
+  dplyr::select(chromosome, end, SNP, symbol, pval) %>%
+  dplyr::rename(meta_P=pval) %>%
+  dplyr::filter(!is.na(meta_P)&meta_P!="") %>%
+  unique() %>%
+  dplyr::arrange(chromosome, end)
+
+
+#SNP data from TAGC
+snp_TAGC_fn <- "/mnt/volume_nyc3_01/realgar_files/hg38_annot/TAGC.hg38.realgar.final.bed"
+snp_TAGC <- readbed_func(snp_TAGC_fn)
+
+snp_TAGC_multi <- snp_TAGC %>%
+  dplyr::select(chromosome, end, SNP, symbol, pval_multi) %>%
+  dplyr::rename(meta_P=pval_multi) %>%
+  dplyr::filter(!is.na(meta_P)&meta_P!="") %>%
+  unique() %>%
+  dplyr::arrange(chromosome, end)
+
+
+snp_TAGC_euro <- snp_TAGC %>%
+  dplyr::select(chromosome, end, SNP, symbol, pval_euro) %>%
+  dplyr::rename(meta_P=pval_euro) %>%
+  dplyr::filter(!is.na(meta_P)&meta_P!="") %>%
+  unique() %>%
+  dplyr::arrange(chromosome, end)
+
+
+#SNP data from UKBB
+snp_UKBB_asthma_fn <- "/mnt/volume_nyc3_01/realgar_files/hg38_annot/ukbb.asthma.hg38.realgar.final.bed"
+snp_UKBB_asthma <- readbed_func(snp_UKBB_asthma_fn) %>%
+  dplyr::select(chromosome, end, SNP, symbol, P) %>%
+  dplyr::rename(meta_P=P) %>%
+  dplyr::filter(!is.na(meta_P)&meta_P!="") %>%
+  unique() %>%
+  dplyr::arrange(chromosome, end)
+
+
+snp_UKBB_copd_fn <- "/mnt/volume_nyc3_01/realgar_files/hg38_annot/ukbb.copd.hg38.realgar.final.bed"
+snp_UKBB_copd <- readbed_func(snp_UKBB_copd_fn) %>%
+  dplyr::select(chromosome, end, SNP, symbol, P) %>%
+  dplyr::rename(meta_P=P) %>%
+  dplyr::filter(!is.na(meta_P)&meta_P!="") %>%
+  unique() %>%
+  dplyr::arrange(chromosome, end)
+
+
+snp_UKBB_aco_fn <- "/mnt/volume_nyc3_01/realgar_files/hg38_annot/ukbb.aco.hg38.realgar.final.bed"
+snp_UKBB_aco <- readbed_func(snp_UKBB_aco_fn) %>%
+  dplyr::select(chromosome, end, SNP, symbol, P) %>%
+  dplyr::rename(meta_P=P) %>%
+  dplyr::filter(!is.na(meta_P)&meta_P!="") %>%
+  unique() %>%
+  dplyr::arrange(chromosome, end)
+
 
 # add color columns
 breaks <- c(seq(0,8,by=0.001), Inf) # this sets max universally at 8 (else highest one OF THE SUBSET would be the max)
@@ -145,13 +218,8 @@ snp_UKBB_asthma_gwas <- datsel_func(snp_UKBB_asthma, pval_thr = pval_thr2)
 snp_UKBB_copd_gwas <- datsel_func(snp_UKBB_copd, pval_thr = pval_thr2)
 snp_UKBB_aco_gwas <- datsel_func(snp_UKBB_aco, pval_thr = pval_thr2)
 
-#color tfbs based on binding score - used in tracks
-#create color scheme based on encode binding score & snp p-values
-#tfbs$color <- inferno(50)[as.numeric(cut(tfbs$score,breaks = 50))]
-
 #Put it in database
-#db = dbConnect(SQLite(), dbname="/mnt/volume_nyc3_01/realgar_data/realgar-gwas.sqlite")
-db = dbConnect(SQLite(), dbname="realgar-gwas-hg38-normal.sqlite") #sudo mv to /mnt/volume_nyc3_01/realgar_data/
+db = dbConnect(SQLite(), dbname="/mnt/volume_nyc3_01/realgar_files/hg38_annot/sqilte_results/realgar-gwas-hg38-normal.sqlite") #sudo mv to /mnt/volume_nyc3_01/realgar_data/
 
 #Check table
 dbListTables(db)
@@ -167,8 +235,8 @@ dbWriteTable(conn=db, name="snp_fer", snp_fer, row.names=F, overwrite=T)
 dbWriteTable(conn=db, name="snp_TAGC_multi", snp_TAGC_multi, row.names=F, overwrite=T)
 dbWriteTable(conn=db, name="snp_TAGC_euro", snp_TAGC_euro, row.names=F, overwrite=T)
 dbWriteTable(conn=db, name="snp_UKBB_asthma", snp_UKBB_asthma, row.names=F, overwrite=T)
-#dbWriteTable(conn=db, name="tfbs", tfbs, row.names=F)
-#dbWriteTable(conn=db, name="gene_locations", gene_locations, row.names=F)
+dbWriteTable(conn=db, name="snp_UKBB_copd", snp_UKBB_copd, row.names=F, overwrite=T)
+dbWriteTable(conn=db, name="snp_UKBB_aco", snp_UKBB_aco, row.names=F, overwrite=T)
 
 #Check table
 dbListTables(db)
@@ -178,8 +246,7 @@ dbDisconnect(db)
 
 
 #Put it in database - nominal significance
-#db = dbConnect(SQLite(), dbname="/mnt/volume_nyc3_01/realgar_data/realgar-gwas.sqlite")
-db = dbConnect(SQLite(), dbname="realgar-gwas-hg38-nominal.sqlite") #sudo mv to /mnt/volume_nyc3_01/realgar_data/
+db = dbConnect(SQLite(), dbname="/mnt/volume_nyc3_01/realgar_files/hg38_annot/sqilte_results/realgar-gwas-hg38-nominal.sqlite") #sudo mv to /mnt/volume_nyc3_01/realgar_data/
 
 #Check table
 dbListTables(db)
@@ -195,8 +262,8 @@ dbWriteTable(conn=db, name="snp_fer", snp_fer_nominal, row.names=F, overwrite=T)
 dbWriteTable(conn=db, name="snp_TAGC_multi", snp_TAGC_multi_nominal, row.names=F, overwrite=T)
 dbWriteTable(conn=db, name="snp_TAGC_euro", snp_TAGC_euro_nominal, row.names=F, overwrite=T)
 dbWriteTable(conn=db, name="snp_UKBB_asthma", snp_UKBB_asthma_nominal, row.names=F, overwrite=T)
-#dbWriteTable(conn=db, name="tfbs", tfbs, row.names=F)
-#dbWriteTable(conn=db, name="gene_locations", gene_locations, row.names=F)
+dbWriteTable(conn=db, name="snp_UKBB_copd", snp_UKBB_copd_nominal, row.names=F, overwrite=T)
+dbWriteTable(conn=db, name="snp_UKBB_aco", snp_UKBB_aco_nominal, row.names=F, overwrite=T)
 
 #Check table
 dbListTables(db)
@@ -205,8 +272,7 @@ dbListTables(db)
 dbDisconnect(db)
 
 #Put it in database - nominal significance
-#db = dbConnect(SQLite(), dbname="/mnt/volume_nyc3_01/realgar_data/realgar-gwas.sqlite")
-db = dbConnect(SQLite(), dbname="realgar-gwas-hg38-genomewide.sqlite") #sudo mv to /mnt/volume_nyc3_01/realgar_data/
+db = dbConnect(SQLite(), dbname="/mnt/volume_nyc3_01/realgar_files/hg38_annot/sqilte_results/realgar-gwas-hg38-genomewide.sqlite") #sudo mv to /mnt/volume_nyc3_01/realgar_data/
 
 #Check table
 dbListTables(db)
@@ -222,12 +288,11 @@ dbWriteTable(conn=db, name="snp_fer", snp_fer_gwas, row.names=F, overwrite=T)
 dbWriteTable(conn=db, name="snp_TAGC_multi", snp_TAGC_multi_gwas, row.names=F, overwrite=T)
 dbWriteTable(conn=db, name="snp_TAGC_euro", snp_TAGC_euro_gwas, row.names=F, overwrite=T)
 dbWriteTable(conn=db, name="snp_UKBB_asthma", snp_UKBB_asthma_gwas, row.names=F, overwrite=T)
-#dbWriteTable(conn=db, name="tfbs", tfbs, row.names=F)
-#dbWriteTable(conn=db, name="gene_locations", gene_locations, row.names=F)
+dbWriteTable(conn=db, name="snp_UKBB_copd", snp_UKBB_copd_gwas, row.names=F, overwrite=T)
+dbWriteTable(conn=db, name="snp_UKBB_aco", snp_UKBB_aco_gwas, row.names=F, overwrite=T)
 
 #Check table
 dbListTables(db)
 
 #Disconnect
 dbDisconnect(db)
-

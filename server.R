@@ -43,125 +43,34 @@ server <- shinyServer(function(input, output, session) {
   
   
   ## Get current gene or gene near selected SNP ID
-   curr_gene <- reactive({
-     current <- toString(input_current())
-     if (gsub(" ", "", tolower(current), fixed=TRUE) %in% c(get_snp("snp"),get_snp("snp_gabriel"),get_snp("snp_fer"),
-                                                            get_snp("snp_eve_all"),get_snp("snp_eve_ea"),get_snp("snp_eve_aa"),get_snp("snp_eve_la"),
-                                                            get_snp("snp_TAGC_multi"), get_snp("snp_TAGC_euro"))){ #if SNP ID is entered, convert internally to nearest gene symbol
-       rsid <- gsub(" ", "", tolower(current), fixed=TRUE)
-       all_matches <- rbind(rbind(get_matches(rsid,"snp"),get_matches(rsid,"snp_gabriel"),get_matches(rsid,"snp_fer"),
-                                  get_matches(rsid,"snp_eve_all"),get_matches(rsid,"snp_eve_ea"),get_matches(rsid,"snp_eve_aa"),get_matches(rsid,"snp_eve_la"),
-                                  get_matches(rsid,"snp_TAGC_multi"), get_matches(rsid,"snp_TAGC_euro")))
-       join_gene_snp(all_matches)
-     } else {
-       # if it is not in the list of snps, it is a gene id OR a snp that is not associated with asthma
-       # in the latter case it will not show up in the list of genes & user gets an "enter valid gene/snp id" message
-       gsub(" ", "", toupper(current), fixed = TRUE) #make uppercase, remove spaces
-     }
-   })
+  curr_gene <- reactive({
+    print(paste0("check gene/SNP ID: ", input_current()))
+    current <- toString(input_current())
+    current_low <- gsub(" ", "", tolower(current), fixed=TRUE) # convert input to lower case
+    current_up <- gsub(" ", "", toupper(current), fixed=TRUE) # convert input to upper case
+    if (current_up %in% gene_list) { # if input is a gene within the gene_list
+      current <- current_up
+    } else if (grepl("^rs", current_low)) {
+      if (current_low %in% all_snps) { #if SNP ID is entered, convert internally to nearest gene symbol
+        rsid <- current_low
+        all_matches <- get_matches(rsid)
+        print(all_matches)
+        current <- as.character(all_matches$symbol)
+        if (nrow(all_matches)>1) {
+          current <- join_gene_snp(all_matches) # this function will select one gene that nearest by distance to selected snp
+        }
+        print(current)
+      } else { #input is not a valid SNP ID
+        current <- "not_in_snp_db"
+      }
+    } else {
+      # if it is not in the list of snps or genes, it is an invalid gene/snp, user will get an "enter valid gene/snp id" message
+      current <- "invalid"
+    }
+    current
+  })
 
   
-  GeneSymbol <- reactive({if (curr_gene() %in% gene_list) {TRUE} else {FALSE}})  #used later to generate error message when a wrong gene symbol is input
-  
-  ################################################
-  ## reactive UI for EVE & TAGC p-value options ##
-  ################################################
-  
-  # #if either EVE or TAGC SNPs selected, display the phrase "GWAS display options:"
-  # output$GWAS_text <- reactive({if("snp_eve_subs" %in% input_which_SNPs() | "snp_TAGC_subs" %in% input_which_SNPs()){"GWAS display options:"} else {" "}})
-  # 
-  # #if EVE SNPs selected, display option to choose population
-  # output$eve_options <- renderUI({if("snp_eve_subs" %in% input_which_SNPs()) {selectInput("which_eve_pvals", "Which EVE p-values to use?", 
-  #                                                                                       list("All subjects"="meta_P", "African American"="meta_P_AA","European American"="meta_P_EA", "Latino"="meta_P_LAT"), 
-  #                                                                                       selected="meta_P")} else {NULL}})
-  # 
-  # #if TAGC SNPs selected, display option to choose population
-  # output$TAGC_options <- renderUI({if("snp_TAGC_subs" %in% input_which_SNPs()) {selectInput("which_TAGC_pvals", "Which TAGC p-values to use?", 
-  #                                                                                         list("Multiancestry"="p_ran_multi", "European ancestry"="p_ran_euro"), 
-  #                                                                                         selected="p_ran_multi")} else {NULL}})
-  # #if UKBiobank SNPs selected, display phenotype of interest for association results
-  # output$UKBB_options <- renderUI({if("snp_UKBB_subs" %in% input_which_SNPs()) {selectInput("which_UKBB_pheno", "Which UKBiobank phenotype to use?", 
-  #                                                                                      list("Asthma"="Asthma", "COPD"="COPD","ACO"="ACO"), 
-  #                                                                                      selected="pheno_asthma")} else {NULL}})
-    
-  #################################################################################
-  ## "Select all" buttons for tissue, asthma, treatment and GWAS study selection ##
-  #################################################################################
-  
-  #Tissue
-  # observe({
-  #   if(input$selectall_tissue == 0) return(NULL) # don't do anything if action button has been clicked 0 times
-  #   else if (input$selectall_tissue%%2 == 0) { # %% means "modulus" - i.e. here you're testing if button has been clicked a multiple of 2 times
-  #     #updateCheckboxGroupInput(session,"Tissue","Tissue:",choices=tissue_choices, selected = tissue_choices) 
-  #     #updateActionButton(session, "selectall_tissue", label="Unselect all") # change action button label based on user input
-  #   } else { # else is 1, 3, 5 etc.
-  #     #updateCheckboxGroupInput(session,"Tissue","Tissue:",choices=tissue_choices)
-  #     #updateActionButton(session, "selectall_tissue", label="Select all")
-  #     updateSelectInput(session,"Tissue", label="Tissue:",choices=tissue_choices, selected = tissue_choices) # change mk
-  #     updateActionButton(session, "selectall_tissue", label="Unselect all")
-  #   }
-  # })
-  
-  #Disease
-  # observe({
-  #   if(input$selectall_asthma == 0) return(NULL) 
-  #   else if (input$selectall_asthma%%2 == 0) {
-  #     #updateCheckboxGroupInput(session, "Asthma", label="Condition vs Healthy:", choices=asthma_choices)
-  #     updateSelectInput(session, "Asthma", label="Condition vs Healthy:", choices=asthma_choices) # change mk
-  #     updateActionButton(session, "selectall_asthma", label="Select all")
-  #   }
-  #   else {
-  #     #updateCheckboxGroupInput(session,"Asthma",label="Condition vs Healthy:", choices=asthma_choices, selected = asthma_choices)
-  #     updateSelectInput(session, "Asthma", label="Condition vs Healthy:", choices=asthma_choices, selected = asthma_choices) # change mk
-  #     updateActionButton(session, "selectall_asthma", label="Unselect all")
-  #   }})
-  
-  
-  #Treatment
-  # observe({
-  #     if(input$selectall_treatment == 0) return(NULL) 
-  #     else if (input$selectall_treatment%%2 == 0) {
-  #       #updateCheckboxGroupInput(session, "Treatment", "Treatment:", choices = treatment_choices)
-  #       #updateActionButton(session, "selectall_treatment", label="Select all")
-  #       updateSelectInput(session, "Treatment", "Treatment:", choices = treatment_choices) # change mk
-  #       updateActionButton(session, "selectall_treatment", label="Select all")
-  #     }
-  #     else {
-  #       #updateCheckboxGroupInput(session, "Treatment", "Treatment:", choices = treatment_choices, selected = treatment_choices)
-  #       #updateActionButton(session, "selectall_treatment", label="Unselect all")
-  #       updateSelectInput(session, "Treatment", "Treatment:", choices = treatment_choices, selected = treatment_choices) # change mk
-  #       updateActionButton(session, "selectall_treatment", label="Unselect all")
-  #     }})
-  
-  #Smoking
-  #observe({
-  #  if(input$selectall_smoking == 0) return(NULL) 
-  #  else if (input$selectall_smoking%%2 == 0) {
-  #    updateCheckboxGroupInput(session, "Smoking", "Smoking:", choices = smoking_choices)
-  #    updateActionButton(session, "selectall_smoking", label="Select all")
-  #  }
-  #  else {
-  #    updateCheckboxGroupInput(session, "Smoking", "Smoking:", choices = smoking_choices, selected = smoking_choices)
-  #    updateActionButton(session, "selectall_smoking", label="Unselect all")
-  #  }})
-  
-  #GWAS
-  # observe({
-  #     if(input$selectall_GWAS == 0) return(NULL) 
-  #     else if (input$selectall_GWAS%%2 == 0) {
-  #         #updateCheckboxGroupInput(session,"which_SNPs","GWAS Results",choices=gwas_choices)
-  #         #updateActionButton(session, "selectall_GWAS", label="Select all")
-  #         updateSelectInput(session,"which_SNPs","GWAS Results",choices=gwas_choices) # change mk
-  #         updateActionButton(session, "selectall_GWAS", label="Select all")
-  #     }
-  #     else {
-  #         #updateCheckboxGroupInput(session,"which_SNPs","GWAS Results", choices=gwas_choices, selected=gwas_choices)
-  #         #updateActionButton(session, "selectall_GWAS", label="Unselect all")
-  #         updateSelectInput(session,"which_SNPs","GWAS Results", choices=gwas_choices, selected=gwas_choices) # change mk
-  #         updateActionButton(session, "selectall_GWAS", label="Unselect all")
-  #     }})
-  
-    
   #######################
   ## GEO studies table ##
   #######################
@@ -241,7 +150,23 @@ server <- shinyServer(function(input, output, session) {
     df
   })
 
+
   
+  ChIPSeq_links <- reactive({
+    chipseq_dataset %>%
+      dplyr::mutate(Study_link1=ifelse(grepl("^GSE", Dataset), paste0("https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=", Dataset), ifelse(grepl("^SRP", Dataset), paste0("https://www.ncbi.nlm.nih.gov/sra/?term=", Dataset), NA))) %>%
+      dplyr::mutate(Study_link=paste0("<a href='",  Study_link1, "' target='_blank'>", Dataset,"</a>")) %>%
+      dplyr::mutate(PMID_link1=paste0("https://www.ncbi.nlm.nih.gov/pubmed/?term=", PMID)) %>%
+      dplyr::mutate(PMID_link=paste0("<a href='",  PMID_link1, "' target='_blank'>", PMID,"</a>")) %>%
+      dplyr::mutate(QC_link=paste0(Dataset,"_QC_ChIPSeqReport.html")) %>%
+      dplyr::mutate(Report=paste0("<a href='",  QC_link, "' target='_blank'>", "QC","</a>")) %>%
+      dplyr::select(Study_link, PMID_link, Report, Description) %>%
+      dplyr::rename(Dataset=Study_link, PMID=PMID_link)
+    
+  })
+  
+  
+    
   #table output for "Datasets Loaded" tab
   output$GEO_table <- DT::renderDataTable(GEO_links(),  
                                           class = 'cell-border stripe', 
@@ -254,25 +179,47 @@ server <- shinyServer(function(input, output, session) {
                                            rownames = FALSE,
                                            options = list(paging = FALSE, searching = FALSE), 
                                            escape = FALSE)
+
+  output$chipseq_table <- DT::renderDataTable(ChIPSeq_links(),
+                                           class = 'cell-border stripe',
+                                           rownames = FALSE,
+                                           options = list(paging = FALSE, searching = FALSE), 
+                                           escape = FALSE)
   
+  
+    
   #########################################
   ## Select GEO data for plots and table ##
   #########################################
   
   #select and modify data used for plots and accompanying table
+
+  check_input_message <- reactive({ # check input
+    # move the check process out of the function output.tableforplot and add it to forest plot output chunck, otherwise, an error message will display
+    print("generate check message")
+    message <- ""
+    if (nrow(UserDataset_Info()) == 0) {
+      message <- "Please choose at least one dataset." #Generate a error message when no data is loaded.
+    }
+    if (curr_gene() == "") {
+      message <- "Please enter a gene symbol or SNP ID." #Generate a error message when no gene id is input.
+    }
+    if (curr_gene() == "invalid") {
+      message <- "Please enter a valid gene symbol or SNP ID."
+    }
+    if (curr_gene() == "not_in_snp_db") {
+      message <- "The input SNP ID is not present in the current datasets"
+    }
+    message
+  })  
+  
   output.tableforplot <- reactive({
-    
-    validate(need(nrow(UserDataset_Info()) != 0, "Please choose at least one dataset.")) #Generate a error message when no data is loaded.
-    validate(need(curr_gene() != "", "Please enter a gene symbol or SNP ID.")) #Generate a error message when no gene id is input.
-    
     gene <- paste0('"',curr_gene(),'"')
     query <- paste0("SELECT * FROM REALGAR WHERE Gene = ",gene)
     res <- dbSendQuery(ngs_db, query)
     out.table <- dbFetch(res)
     dbClearResult(res)
-    
-    # Generate error message if the gene symbol is not right.
-    validate(need(GeneSymbol() != FALSE, "Please enter a valid gene symbol or SNP ID."))
+
     out.table <- out.table %>%
       dplyr::filter(Unique_ID %in% UserDataset_Info()$Unique_ID) %>%
       dplyr::rename(adj.P.Val = adjPVal,P.Value = PValue) %>%
@@ -286,17 +233,20 @@ server <- shinyServer(function(input, output, session) {
   
   # asthma
   data_Asthma <- reactive({ 
-  output.tableforplot_asthma <- output.tableforplot() %>% dplyr::filter(App == "asthma")
+    print("generate asthma dataset")
+    output.tableforplot_asthma <- output.tableforplot() %>% dplyr::filter(App == "asthma")
   })
   
   # GC
-  data_GC <- reactive({ 
-  output.tableforplot_GC <- output.tableforplot() %>% dplyr::filter(App == "GC")
+  data_GC <- reactive({
+    print("generate GC dataset")
+    output.tableforplot_GC <- output.tableforplot() %>% dplyr::filter(App == "GC")
   })
   
   # Smoking
-  data_cig <- reactive({ 
-    output.tableforplot_cig <- output.tableforplot() %>% dplyr::filter(App == "Smoking"|App == "Pollutant")
+  data_cig <- reactive({
+    print("generate cig dataset")
+    output.tableforplot_cig <- output.tableforplot() %>% dplyr::filter(App == "Smoking")
   })
 
   
@@ -306,6 +256,7 @@ server <- shinyServer(function(input, output, session) {
   
   # asthma
   asthma_pcomb <- reactive({
+    print("combine p-values for asthma datasets")
     dat <- data_Asthma()
     if (length(dat$adj.P.Val)>1) {
       #write.table(dat,paste0("Asthma_",curr_gene(),".txt"),col.names=T,row.names=F,sep="\t",quote=F)
@@ -321,6 +272,7 @@ server <- shinyServer(function(input, output, session) {
   
   # GC
   GC_pcomb <- reactive({
+    print("combine p-values for GC datasets")
     dat <- data_GC()
     if (length(dat$adj.P.Val)>1) {
       #write.table(dat,paste0("GC_",curr_gene(),".txt"),col.names=T,row.names=F,sep="\t",quote=F)
@@ -336,6 +288,7 @@ server <- shinyServer(function(input, output, session) {
   
   # Smoking
   cig_pcomb <- reactive({
+    print("combine p-values for cigarette datasets")
     dat <- data_cig()
     if (length(dat$adj.P.Val)>1) {
       #write.table(dat,paste0("GC_",curr_gene(),".txt"),col.names=T,row.names=F,sep="\t",quote=F)
@@ -358,24 +311,27 @@ server <- shinyServer(function(input, output, session) {
   # p-values, effect size and 95% CI will be used for forestplot
   # asthma
   meta_Asthma <- reactive({
-      dat <- data_Asthma()
-      if (length(dat$adj.P.Val)>1) {
-          res <- meta_stat(dat)
-      }
-      else {res <- list(meta_pval=1,meta_fc=1,meta_lower=1,meta_upper=1)} # assign any values to trick the app if no "treatment" is selected
-      res
+    print("meta-analysis for asthma datasets")
+    dat <- data_Asthma()
+    if (length(dat$adj.P.Val)>1) {
+      res <- meta_stat(dat)
+    }
+    else {res <- list(meta_pval=1,meta_fc=1,meta_lower=1,meta_upper=1)} # assign any values to trick the app if no "treatment" is selected
+    res
   })  
   
   meta_GC <- reactive({
-      dat <- data_GC()
-      if (length(dat$adj.P.Val)>1) {
-          res <- meta_stat(dat)
-      }
-      else {res <- list(meta_pval=NA,meta_fc=NA,meta_lower=NA,meta_upper=NA)}
-      res
+    print("meta-analysis for GC datasets")
+    dat <- data_GC()
+    if (length(dat$adj.P.Val)>1) {
+      res <- meta_stat(dat)
+    }
+    else {res <- list(meta_pval=NA,meta_fc=NA,meta_lower=NA,meta_upper=NA)}
+    res
   })  
   
   meta_cig <- reactive({
+    print("meta-analysis for cigarette datasets")
     dat <- data_cig()
     if (length(dat$adj.P.Val)>1) {
       res <- meta_stat(dat)
@@ -449,6 +405,7 @@ server <- shinyServer(function(input, output, session) {
   
   # asthma
   data2_Asthma <- reactive({ # dataset without meta-analysis results
+    print("generate intermediate asthma table")
     data_Asthma()%>%
       dplyr::select(Unique_ID, adj.P.Val, P.Value,Fold_Change, neglogofP, Lower_bound_CI, Upper_bound_CI) %>%
       dplyr::arrange(desc(Fold_Change),desc(Upper_bound_CI)) %>% # sort by first effect size (fold change) and then by upper CI in a descending order
@@ -462,16 +419,19 @@ server <- shinyServer(function(input, output, session) {
   
   # obtain intermediate asthma data for table output and forest plots
   data3_Asthma <- reactive({
+    print("generate final asthma table")
     interdata_func(data2_Asthma(),meta_Asthma())
   }) 
   
   # output table for asthma
   tableforgraph_Asthma <- reactive({
-      tableforgraph_func(data3_Asthma())
+    print("generate asthma forestplot table")
+    tableforgraph_func(data3_Asthma())
   })
   
   # GC
   data2_GC <- reactive({
+    print("generate intermediate GC table")
       data_GC()%>%
           dplyr::select(Unique_ID, adj.P.Val, P.Value,Fold_Change, neglogofP, Lower_bound_CI, Upper_bound_CI) %>%
           dplyr::mutate(Fold_Change=round(Fold_Change,digits=2),
@@ -484,17 +444,20 @@ server <- shinyServer(function(input, output, session) {
   
   # obtain intermediate GC data for table output and forest plots
   data3_GC <- reactive({
+    print("generate final GC table")
     interdata_func(data2_GC(),meta_GC())
   }) 
   
   # output table for GC
   tableforgraph_GC <- reactive({
-      tableforgraph_func(data3_GC())
+    print("generate GC forestplot table")
+    tableforgraph_func(data3_GC())
   })
   
   
   # Smoking
   data2_cig <- reactive({
+    print("generate intermediate asthmacigarette table")
     data_cig()%>%
       dplyr::select(Unique_ID, adj.P.Val, P.Value,Fold_Change, neglogofP, Lower_bound_CI, Upper_bound_CI) %>%
       dplyr::mutate(Fold_Change=round(Fold_Change,digits=2),
@@ -507,17 +470,19 @@ server <- shinyServer(function(input, output, session) {
   
   # obtain intermediate smoking data for table output and forest plots
   data3_cig <- reactive({
+    print("generate final cigarette table")
     interdata_func(data2_cig(),meta_cig())
   }) 
   
   # output table for Smoking
   tableforgraph_cig <- reactive({
+    print("generate cigarette forestplot table")
     tableforgraph_func(data3_cig())
   })
   
   
   #combine asthma & GC & Smoking into one
-  output$tableforgraph <- DT::renderDataTable(rbind(rbind(tableforgraph_Asthma(), tableforgraph_GC()),tableforgraph_cig()),
+  output$tableforgraph <- DT::renderDataTable(dplyr::bind_rows(tableforgraph_Asthma(), tableforgraph_GC(),tableforgraph_cig()),
                                               class = 'cell-border stripe', 
                                               rownames = FALSE, 
                                               options = list(paging = FALSE, searching = FALSE),
@@ -545,6 +510,8 @@ server <- shinyServer(function(input, output, session) {
   })
   
   forestplot_asthma <- reactive({
+    validate(need(check_input_message()=="", check_input_message()))
+    print("present asthma forest plot")
     forestplot_func(data3_Asthma(),"Asthma Transcriptomic Results for ",curr_gene())
   }) 
   
@@ -555,6 +522,8 @@ server <- shinyServer(function(input, output, session) {
   })
   
   forestplot_GC <- reactive({
+    print("present GC forest plot")
+    validate(need(check_input_message()=="", check_input_message()))
     forestplot_func(data3_GC(),"Exposure Transcriptomic Results for ",curr_gene())
   }) 
   
@@ -565,7 +534,9 @@ server <- shinyServer(function(input, output, session) {
   })
   
   forestplot_cig <- reactive({
-    forestplot_func(data3_cig(),"Smoking Transcriptomic Results for ",curr_gene())
+    print("present cigarette forest plot")
+    validate(need(check_input_message()=="", check_input_message()))
+    forestplot_func(data3_cig(),"Pollutant Transcriptomic Results for ",curr_gene())
   }) 
   
   
@@ -603,244 +574,96 @@ server <- shinyServer(function(input, output, session) {
       width=818*1.05,
       filetype = "image/png",
       alt = "color_scale"))}, deleteFile = FALSE)
-  
-  #filter data for selected gene
-  # gene_subs <- reactive({
-  #   gene_subs_temp <- get_query_db("gene_locations",curr_gene())
-  #   gene_subs_temp <- gene_subs_temp[!(duplicated(gene_subs_temp$exon)),]
-  #   })
-  
-  # tfbs_subs <- reactive({
-  #   tfbs_db <- get_query_db("tfbs",curr_gene())
-  #   unique(tfbs_db)
-  #   })
-  
-  snp_subs <- reactive({
-    print(input$pval_thr)
-    if(("snp_subs" %in% input_which_SNPs())) {
-      if (input$pval_thr=="normal") {
-        snp_db <- get_query_db("snp",curr_gene())
-      } else if (input$pval_thr=="norminal") {
-        snp_db <- get_query_nominal_db("snp",curr_gene())
-      } else if (input$pval_thr=="genomewide") {
-        snp_db <- get_query_genomewide_db("snp",curr_gene())
+
+  # Use this function to extract gene from GWAS tables
+  select_gene_from_GWAStb_func <- function(select_gwas_tb, pval_thr, query_table) {
+    if (select_gwas_tb %in% input_which_SNPs()) {
+      if (pval_thr=="normal") {
+        snp_db <- get_query_db(query_table, curr_gene())
+      } else if (pval_thr=="nominal") {
+        snp_db <- get_query_nominal_db(query_table, curr_gene())
+      } else if (pval_thr=="genomewide") {
+        snp_db <- get_query_genomewide_db(query_table, curr_gene())
       } 
       if (nrow(snp_db) > 0){
-        snp_db %>% dplyr::mutate(start=start+1) %>% unique()
+        snp_db %>% dplyr::mutate(start=end) %>% unique()
       } else {data.frame(matrix(nrow = 0, ncol = 0))}
-    }
-    else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
+    } else {data.frame(matrix(nrow = 0, ncol = 0))} #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
+  }
+
+  # GRASP  
+  snp_subs <- reactive({
+    print("select GRASP")
+    select_gene_from_GWAStb_func(select_gwas_tb = "snp_subs", pval_thr = input$pval_thr, query_table = "snp")
+  })
   
+  # GABRIEL
   snp_gabriel_subs <- reactive({
     print("select gabriel")
-    if(("snp_gabriel_subs" %in% input_which_SNPs())) {
-      if (input$pval_thr=="normal") {
-        snp_gabriel_db <- get_query_db("snp_gabriel",curr_gene())
-      } else if (input$pval_thr=="norminal") {
-        snp_gabriel_db <- get_query_nominal_db("snp_gabriel",curr_gene())
-      } else if (input$pval_thr=="genomewide") {
-        snp_gabriel_db <- get_query_genomewide_db("snp_gabriel",curr_gene())
-      }
-      if (nrow(snp_gabriel_db) > 0){
-        snp_gabriel_db %>% dplyr::mutate(start=start+1, pmid=20860503) %>% 
-          dplyr::select(chromosome, start, end, snp, symbol, pmid, meta_P, neg_log_p, color, eqtl_lung, eqtl_blood, eqtl_muscle) %>% unique()
-      } else {data.frame(matrix(nrow = 0, ncol = 0))}
-       }
-    else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
+    select_gene_from_GWAStb_func(select_gwas_tb = "snp_gabriel_subs", pval_thr = input$pval_thr, query_table = "snp_gabriel")
+  })
   
+  # Ferreira
   snp_fer_subs <- reactive({
     print("select ferreira")
-    if(("snp_fer_subs" %in% input_which_SNPs())) {
-      if (input$pval_thr=="normal") {
-        snp_fer_db <- get_query_db("snp_fer",curr_gene())
-      } else if (input$pval_thr=="norminal") {
-        snp_fer_db <- get_query_nominal_db("snp_fer",curr_gene())
-      } else if (input$pval_thr=="genomewide") {
-        snp_fer_db <- get_query_genomewide_db("snp_fer",curr_gene())
-      } 
-      if (nrow(snp_fer_db) > 0){
-        snp_fer_db %>% dplyr::mutate(start=start+1, pmid=29083406) %>% 
-          dplyr::select(chromosome, start, end, snp, symbol, pmid, meta_P, neg_log_p, color, eqtl_lung, eqtl_blood, eqtl_muscle)
-      } else {data.frame(matrix(nrow = 0, ncol = 0))}
-    }
-    else {data.frame(matrix(nrow = 0, ncol = 0))}}) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
-  
+    select_gene_from_GWAStb_func(select_gwas_tb = "snp_fer_subs", pval_thr = input$pval_thr, query_table = "snp_fer")
+  })
+ 
+  # EVE ALL
   snp_eve_all_subs <- reactive({
     print("select eve all")
-    if(("snp_eve_all_subs" %in% input_which_SNPs())) {
-      if (input$pval_thr=="normal") {
-        snp_eve_all_db <- get_query_db("snp_eve_all",curr_gene())
-      } else if (input$pval_thr=="norminal") {
-        snp_eve_all_db <- get_query_nominal_db("snp_eve_all",curr_gene())
-      } else if (input$pval_thr=="genomewide") {
-        snp_eve_all_db <- get_query_genomewide_db("snp_eve_all",curr_gene())
-      } 
-      if (nrow(snp_eve_all_db)>0){
-        snp_eve_all_db %>%
-            dplyr::mutate(start=start+1, pmid=21804549)%>%
-            dplyr::select(chromosome, start, end, snp, symbol, pmid, meta_P, neg_log_p, color, eqtl_lung, eqtl_blood, eqtl_muscle)
-      }
-      else {data.frame(matrix(nrow = 0, ncol = 0))} #since pval_selector might remove all rows
-    }else {data.frame(matrix(nrow = 0, ncol = 0))} #since which_eve_pvals is null
-  }) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
-  
+    select_gene_from_GWAStb_func(select_gwas_tb = "snp_eve_all_subs", pval_thr = input$pval_thr, query_table = "snp_eve_all")
+  })
 
+  # EVE EA
   snp_eve_ea_subs <- reactive({
-    print("select eve ea")
-    if(("snp_eve_ea_subs" %in% input_which_SNPs())) {
-      if (input$pval_thr=="normal") {
-        snp_eve_ea_db <- get_query_db("snp_eve_ea",curr_gene())
-      } else if (input$pval_thr=="norminal") {
-        snp_eve_ea_db <- get_query_nominal_db("snp_eve_ea",curr_gene())
-      } else if (input$pval_thr=="genomewide") {
-        snp_eve_ea_db <- get_query_genomewide_db("snp_eve_ea",curr_gene())
-      } 
-      if (nrow(snp_eve_ea_db)>0){
-        snp_eve_ea_db %>%
-          dplyr::mutate(start=start+1, pmid=21804549)%>%
-          dplyr::select(chromosome, start, end, snp, symbol, pmid, meta_P, neg_log_p, color, eqtl_lung, eqtl_blood, eqtl_muscle)
-      }
-      else {data.frame(matrix(nrow = 0, ncol = 0))} #since pval_selector might remove all rows
-    }else {data.frame(matrix(nrow = 0, ncol = 0))} #since which_eve_pvals is null
-  }) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
+    print("select eve EA")
+    select_gene_from_GWAStb_func(select_gwas_tb = "snp_eve_ea_subs", pval_thr = input$pval_thr, query_table = "snp_eve_ea")
+  })
   
+  # EVE AA
   snp_eve_aa_subs <- reactive({
-    print("select eve aa")
-    if(("snp_eve_aa_subs" %in% input_which_SNPs())) {
-      if (input$pval_thr=="normal") {
-        snp_eve_aa_db <- get_query_db("snp_eve_aa",curr_gene())
-      } else if (input$pval_thr=="norminal") {
-        snp_eve_aa_db <- get_query_nominal_db("snp_eve_aa",curr_gene())
-      } else if (input$pval_thr=="genomewide") {
-        snp_eve_aa_db <- get_query_genomewide_db("snp_eve_aa",curr_gene())
-      } 
-      if (nrow(snp_eve_aa_db)>0){
-        snp_eve_aa_db %>%
-          dplyr::mutate(start=start+1, pmid=21804549)%>%
-          dplyr::select(chromosome, start, end, snp, symbol, pmid, meta_P, neg_log_p, color, eqtl_lung, eqtl_blood, eqtl_muscle)
-      }
-      else {data.frame(matrix(nrow = 0, ncol = 0))} #since pval_selector might remove all rows
-    }else {data.frame(matrix(nrow = 0, ncol = 0))} #since which_eve_pvals is null
-  }) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
-  
-  
-  snp_eve_la_subs <- reactive({
-    print("select eve la")
-    if(("snp_eve_la_subs" %in% input_which_SNPs())) {
-      if (input$pval_thr=="normal") {
-        snp_eve_la_db <- get_query_db("snp_eve_la",curr_gene())
-      } else if (input$pval_thr=="norminal") {
-        snp_eve_la_db <- get_query_nominal_db("snp_eve_la",curr_gene())
-      } else if (input$pval_thr=="genomewide") {
-        snp_eve_la_db <- get_query_genomewide_db("snp_eve_la",curr_gene())
-      } 
-      if (nrow(snp_eve_la_db)>0){
-        snp_eve_la_db %>%
-          dplyr::mutate(start=start+1, pmid=21804549)%>%
-          dplyr::select(chromosome, start, end, snp, symbol, pmid, meta_P, neg_log_p, color, eqtl_lung, eqtl_blood, eqtl_muscle)
-      }
-      else {data.frame(matrix(nrow = 0, ncol = 0))} #since pval_selector might remove all rows
-    }else {data.frame(matrix(nrow = 0, ncol = 0))} #since which_eve_pvals is null
-  }) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
+    print("select eve AA")
+    select_gene_from_GWAStb_func(select_gwas_tb = "snp_eve_aa_subs", pval_thr = input$pval_thr, query_table = "snp_eve_aa")
+  })
   
 
+  # EVE LA  
+  snp_eve_la_subs <- reactive({
+    print("select eve LA")
+    select_gene_from_GWAStb_func(select_gwas_tb = "snp_eve_la_subs", pval_thr = input$pval_thr, query_table = "snp_eve_la")
+  })
+  
+  # TAGC Multi-ancestry
   snp_TAGC_multi_subs <- reactive({
     print("select tagc multi")
-    if(("snp_TAGC_multi_subs" %in% input_which_SNPs())) {
-      if (input$pval_thr=="normal") {
-        snp_TAGC_multi_db <- get_query_db("snp_TAGC_multi",curr_gene())
-      } else if (input$pval_thr=="norminal") {
-        snp_TAGC_multi_db <- get_query_nominal_db("snp_TAGC_multi",curr_gene())
-      } else if (input$pval_thr=="genomewide") {
-        snp_TAGC_multi_db <- get_query_genomewide_db("snp_TAGC_multi",curr_gene())
-      } 
-      
-      if (nrow(snp_TAGC_multi_db)>0){
-        snp_TAGC_multi_db %>% 
-            dplyr::mutate(start=start+1, pmid=29273806) %>% 
-            dplyr::select(chromosome, start, end, snp, symbol, pmid, meta_P, neg_log_p, color, eqtl_lung, eqtl_blood, eqtl_muscle)
-      } else {data.frame(matrix(nrow = 0, ncol = 0))}
-    } else {data.frame(matrix(nrow = 0, ncol = 0))} #since which_TAGC_pvals in NULL
-  }) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error
+    select_gene_from_GWAStb_func(select_gwas_tb = "snp_TAGC_multi_subs", pval_thr = input$pval_thr, query_table = "snp_TAGC_multi")
+  })
 
+  # TAGC EURO
   snp_TAGC_euro_subs <- reactive({
     print("select tagc euro")
-    if(("snp_TAGC_euro_subs" %in% input_which_SNPs())) {
-      if (input$pval_thr=="normal") {
-        snp_TAGC_euro_db <- get_query_db("snp_TAGC_euro",curr_gene())
-      } else if (input$pval_thr=="norminal") {
-        snp_TAGC_euro_db <- get_query_nominal_db("snp_TAGC_euro",curr_gene())
-      } else if (input$pval_thr=="genomewide") {
-        snp_TAGC_euro_db <- get_query_genomewide_db("snp_TAGC_euro",curr_gene())
-      } 
-      
-      if (nrow(snp_TAGC_euro_db)>0){
-        snp_TAGC_euro_db %>% 
-          dplyr::mutate(start=start+1, pmid=29273806) %>% 
-          dplyr::select(chromosome, start, end, snp, symbol, pmid, meta_P, neg_log_p, color, eqtl_lung, eqtl_blood, eqtl_muscle)
-      } else {data.frame(matrix(nrow = 0, ncol = 0))}
-    } else {data.frame(matrix(nrow = 0, ncol = 0))} #since which_TAGC_pvals in NULL
-  }) #only non-zero if corresponding checkbox is selected - but can't have "NULL" - else get "argument is of length zero" error  
+    select_gene_from_GWAStb_func(select_gwas_tb = "snp_TAGC_euro_subs", pval_thr = input$pval_thr, query_table = "snp_TAGC_euro")
+  })
 
+  # UKBB asthma
   snp_UKBB_asthma_subs <- reactive({
     print("select ukbb asthma")
-    if(("snp_UKBB_asthma_subs" %in% input_which_SNPs())) {
-      if (input$pval_thr=="normal") {
-        snp_UKBB_asthma_db <- get_query_db("snp_UKBB_asthma",curr_gene())
-      } else if (input$pval_thr=="norminal") {
-        snp_UKBB_asthma_db <- get_query_nominal_db("snp_UKBB_asthma",curr_gene())
-      } else if (input$pval_thr=="genomewide") {
-        snp_UKBB_asthma_db <- get_query_genomewide_db("snp_UKBB_asthma",curr_gene())
-      }
+    select_gene_from_GWAStb_func(select_gwas_tb = "snp_UKBB_asthma_subs", pval_thr = input$pval_thr, query_table = "snp_UKBB_asthma")
+  })
 
-      if (nrow(snp_UKBB_asthma_db)>0){
-        snp_UKBB_asthma_db %>% 
-            dplyr::mutate(start=start+1, pmid=NA) %>% 
-            dplyr::select(chromosome, start, end, snp, symbol, pmid, meta_P, neg_log_p, color, eqtl_lung, eqtl_blood, eqtl_muscle) 
-      } else {data.frame(matrix(nrow = 0, ncol = 0))}
-    } else {data.frame(matrix(nrow = 0, ncol = 0))} #since which_UKBB_pheno in NULL
-  }) 
-  
+  # UKBB COPD
   snp_UKBB_copd_subs <- reactive({
-    if(("snp_UKBB_copd_subs" %in% input_which_SNPs())) {
-      if (input$pval_thr=="normal") {
-        snp_UKBB_copd_db <- get_query_db("snp_UKBB_copd",curr_gene())
-      } else if (input$pval_thr=="norminal") {
-        snp_UKBB_copd_db <- get_query_nominal_db("snp_UKBB_copd",curr_gene())
-      } else if (input$pval_thr=="genomewide") {
-        snp_UKBB_copd_db <- get_query_genomewide_db("snp_UKBB_copd",curr_gene())
-      }
-      
-      if (nrow(snp_UKBB_copd_db)>0){
-        print("select ukbb copd")
-        snp_UKBB_copd_db %>% 
-          dplyr::mutate(start=start+1, pmid=NA) %>% 
-          dplyr::select(chromosome, start, end, snp, symbol, pmid, meta_P, neg_log_p, color, eqtl_lung, eqtl_blood, eqtl_muscle) 
-      } else {data.frame(matrix(nrow = 0, ncol = 0))}
-    } else {data.frame(matrix(nrow = 0, ncol = 0))} #since which_UKBB_pheno in NULL
-  }) 
+    print("select ukbb copd")
+    select_gene_from_GWAStb_func(select_gwas_tb = "snp_UKBB_copd_subs", pval_thr = input$pval_thr, query_table = "snp_UKBB_copd")
+  })
   
-  
+  # UKBB ACO 
   snp_UKBB_aco_subs <- reactive({
-    if(("snp_UKBB_aco_subs" %in% input_which_SNPs())) {
-      if (input$pval_thr=="normal") {
-        snp_UKBB_aco_db <- get_query_db("snp_UKBB_aco",curr_gene())
-      } else if (input$pval_thr=="norminal") {
-        snp_UKBB_aco_db <- get_query_nominal_db("snp_UKBB_aco",curr_gene())
-      } else if (input$pval_thr=="genomewide") {
-        snp_UKBB_aco_db <- get_query_genomewide_db("snp_UKBB_aco",curr_gene())
-      }
-      
-      if (nrow(snp_UKBB_aco_db)>0){
-        print("select ukbb aco")
-        snp_UKBB_aco_db %>% 
-          dplyr::mutate(start=start+1, pmid=NA) %>% 
-          dplyr::select(chromosome, start, end, snp, symbol, pmid, meta_P, neg_log_p, color, eqtl_lung, eqtl_blood, eqtl_muscle) 
-      } else {data.frame(matrix(nrow = 0, ncol = 0))}
-    } else {data.frame(matrix(nrow = 0, ncol = 0))} #since which_UKBB_pheno in NULL
-  }) 
+    print("select ukbb aco")
+    select_gene_from_GWAStb_func(select_gwas_tb = "snp_UKBB_aco_subs", pval_thr = input$pval_thr, query_table = "snp_UKBB_aco")
+  })
   
-    
   #plot height increases if more tracks are displayed
   # observe({output$gene_tracks_outp2 <- renderPlot({gene_tracks()}, width=1055,
   #                                                 height=400 + 15*length(unique(gene_subs()$transcript)) + 30*nrow(snp_eve_subs()) + 10*(nrow(snp_subs())+nrow(snp_gabriel_subs())+nrow(snp_fer_subs())+nrow(snp_TAGC_subs())))})
@@ -848,150 +671,133 @@ server <- shinyServer(function(input, output, session) {
   #################################
   ## SNP data table for download ##
   #################################
+  
+  outp_gwas_tb_func <- function(dat, pmid, source) {
+    if (nrow(dat)>0) {
+      if ("pmid"%in%names(dat)) {
+        dat %>%
+          dplyr::rename(position=end) %>%
+          dplyr::mutate(source=source) %>%
+          dplyr::select(chromosome, SNP, symbol, position, meta_P, pmid, source) %>%
+          dplyr::mutate(pmid=as.character(pmid))
+      } else {
+        dat %>%
+          dplyr::rename(position=end) %>%
+          dplyr::mutate(source=source, pmid=pmid) %>%
+          dplyr::select(chromosome, SNP, symbol, position, meta_P, pmid, source)
+      }
+    } else {dat}
+  }
+  
+  # GRASP
   snp_subs_temp <- reactive({
-    if (nrow(snp_subs()) > 0) {
-      snp_subs()%>%
-        dplyr::rename(position=start) %>%
-        dplyr::mutate(source = "GRASP") %>%
-        dplyr::select(chromosome, snp, symbol, position, pmid, source, meta_P, eqtl_lung, eqtl_blood, eqtl_muscle)
-    }
+    print("create GRASP table")
+    outp_gwas_tb_func(dat = snp_subs(), source = "GRASP", pmid = "")
   })
   
-  
+  # GABRIEL  
   snp_gabriel_subs_temp <- reactive({
-    if (nrow(snp_gabriel_subs()) > 0) {
-      snp_gabriel_subs() %>%
-        dplyr::rename(position=start) %>%
-        dplyr::mutate(source = "GABRIEL") %>%
-        dplyr::select(-c(end, color, neg_log_p))
-    }
+    print("create GABREIL table")
+    outp_gwas_tb_func(dat = snp_gabriel_subs(), source = "GABRIEL", pmid="20860503")
   })
   
+  # Ferreira
   snp_fer_subs_temp <- reactive({
-    if (nrow(snp_fer_subs()) > 0) {
-      snp_fer_subs() %>%
-        dplyr::rename(position=start) %>%
-        dplyr::mutate(source = "Ferreira") %>%
-        dplyr::select(-c(end, color, neg_log_p))
-    }
+    print("create Ferreira table")
+    outp_gwas_tb_func(dat = snp_fer_subs(), source = "Ferreira", pmid="29083406")
   })
   
+  # EVE ALL
   snp_eve_all_subs_temp <- reactive({
-    if (nrow(snp_eve_all_subs()) > 0) {
-      snp_eve_all_subs() %>%
-        dplyr::rename(position=start) %>%
-        dplyr::mutate(source = "EVE_ALL") %>%
-        dplyr::select(-c(end, neg_log_p, color))
-    }
+    print("create EVE ALL table")
+    outp_gwas_tb_func(dat = snp_eve_all_subs(), source = "EVE_ALL", pmid="21804549")
   })
 
-  
+  # EVE EA
   snp_eve_ea_subs_temp <- reactive({
-    if (nrow(snp_eve_ea_subs()) > 0) {
-      snp_eve_ea_subs() %>%
-        dplyr::rename(position=start) %>%
-        dplyr::mutate(source = "EVE_EA") %>%
-        dplyr::select(-c(end, neg_log_p, color))
-    }
+    print("create EVE EA table")
+    outp_gwas_tb_func(dat = snp_eve_ea_subs(), source = "EVE_EA", pmid="21804549")
   })  
  
-  
+  # EVE AA
   snp_eve_aa_subs_temp <- reactive({
-    if (nrow(snp_eve_aa_subs()) > 0) {
-      snp_eve_aa_subs() %>%
-        dplyr::rename(position=start) %>%
-        dplyr::mutate(source = "EVE_AA") %>%
-        dplyr::select(-c(end, neg_log_p, color))
-    }
+    print("create EVE AA table")
+    outp_gwas_tb_func(dat = snp_eve_aa_subs(), source = "EVE_AA", pmid="21804549")
   })
   
+  # EVE LA
   snp_eve_la_subs_temp <- reactive({
-    if (nrow(snp_eve_la_subs()) > 0) {
-      snp_eve_la_subs() %>%
-        dplyr::rename(position=start) %>%
-        dplyr::mutate(source = "EVE_LA") %>%
-        dplyr::select(-c(end, neg_log_p, color))
-    }
+    print("create EVE LA table")
+    outp_gwas_tb_func(dat = snp_eve_la_subs(), source = "EVE_LA", pmid="21804549")
   })
   
+  # TAGC Multi
   snp_TAGC_multi_subs_temp <- reactive({
-    if (nrow(snp_TAGC_multi_subs()) > 0) {
-      snp_TAGC_multi_subs() %>%
-        dplyr::rename(position=start) %>%
-        dplyr::mutate(source = "TAGC_Multi") %>%
-        dplyr::select(-c(end, neg_log_p, color))
-    }
+    print("create TAGC multi table")
+    outp_gwas_tb_func(dat = snp_TAGC_multi_subs(), source = "TAGC_Multi", pmid = "29273806")
   }) 
   
+  # TAGC EUR
   snp_TAGC_euro_subs_temp <- reactive({
-    if (nrow(snp_TAGC_euro_subs()) > 0) {
-      snp_TAGC_euro_subs() %>%
-        dplyr::rename(position=start) %>%
-        dplyr::mutate(source = "TAGC_EUR") %>%
-        dplyr::select(-c(end, neg_log_p, color))
-    }
+    print("create TAGC EUR table")
+    outp_gwas_tb_func(dat = snp_TAGC_euro_subs(), source = "TAGC_EUR", pmid = "29273806")
   }) 
   
+  # UKBB asthma
   snp_UKBB_asthma_subs_temp <- reactive({
-    if (nrow(snp_UKBB_asthma_subs()) > 0) {
-      snp_UKBB_asthma_subs() %>%
-        dplyr::rename(position=start) %>%
-        dplyr::mutate(source = "UKBB_asthma") %>%
-        dplyr::select(-c(end, neg_log_p, color))
-    }
+    print("create UKBB asthma table")
+    outp_gwas_tb_func(dat = snp_UKBB_asthma_subs(), source = "UKBB_asthma", pmid="NA")
   }) 
   
+  # UKBB COPD
   snp_UKBB_copd_subs_temp <- reactive({
-    if (nrow(snp_UKBB_copd_subs()) > 0) {
-      snp_UKBB_copd_subs() %>%
-        dplyr::rename(position=start) %>%
-        dplyr::mutate(source = "UKBB_COPD") %>%
-        dplyr::select(-c(end, neg_log_p, color))
-    }
+    print("create UKBB COPD table")
+    outp_gwas_tb_func(dat = snp_UKBB_copd_subs(), source = "UKBB_COPD", pmid="NA")
   })
-  
+ 
+  # UKBB ACO 
   snp_UKBB_aco_subs_temp <- reactive({
-    if (nrow(snp_UKBB_aco_subs()) > 0) {
-      snp_UKBB_aco_subs() %>%
-        dplyr::rename(position=start) %>%
-        dplyr::mutate(source = "UKBB_ACO") %>%
-        dplyr::select(-c(end, neg_log_p, color))
-    }
+    print("create UKBB ACO table")
+    outp_gwas_tb_func(dat = snp_UKBB_aco_subs(), source = "UKBB_ACO", pmid="NA")
   })
-  
-  #snp_data <- reactive({dplyr::bind_rows(snp_subs_temp(), snp_eve_subs_temp(), snp_gabriel_subs_temp(), snp_fer_subs_temp(), snp_TAGC_subs_temp())})
+
   snp_data <- reactive({
     print("combine gwas datasets")
-    dplyr::bind_rows(snp_subs_temp(), snp_gabriel_subs_temp(), snp_fer_subs_temp(),
+    dat <- dplyr::bind_rows(snp_subs_temp(), snp_gabriel_subs_temp(), snp_fer_subs_temp(),
                                          snp_eve_all_subs_temp(), snp_eve_ea_subs_temp(), snp_eve_aa_subs_temp(), snp_eve_la_subs_temp(), 
                                          snp_TAGC_multi_subs_temp(), snp_TAGC_euro_subs_temp(), 
                                          snp_UKBB_asthma_subs_temp(), snp_UKBB_copd_subs_temp(), snp_UKBB_aco_subs_temp())
+    get_eqtl_annot_to_GWAS_tb(dat) # annotate eQTL info to GWAS SNPs
     })
   
   #########################
   ## KARYOPLOTR TRACKS ##
   ########################
-  
+ 
+  gene_to_GRanges <- function(gene_tb) {
+    if (gene_tb$strand == -1){
+      gene.gr <- toGRanges(data.frame(chr=gene_tb$Chromosome, start=gene_tb$Start, end=gene_tb$End+20000, genome="hg38"))
+    } else if (gene_tb$strand == 1){
+      gene.gr <- toGRanges(data.frame(chr=gene_tb$Chromosome, start=gene_tb$Start-20000, end=gene_tb$End, genome="hg38"))
+    }
+    return(gene.gr)
+  }
+   
   gene.region <- reactive({
     validate(need(curr_gene() != "", "Please enter a gene symbol or SNP ID.")) #Generate a error message when no gene id is input.
     region <- all_genes %>% dplyr::filter(symbol == curr_gene()) 
     #region_split <- strsplit(x=gsub("\\s","",region$Pos), split="-|:| ")[[1]]
     if (nrow(region) > 0){
-      unique(region)
+      gene_to_GRanges(unique(region))
     } else {NULL}
   })
   
   ## Make Plot
-  # output$karyoPlot <- renderPlot({
-  #   validate(need(!is.null(gene.region()), "Please enter a valid gene symbol or SNP ID.")) #Generate a error message when no gene id is input.
-  #   make_karyoplot(gene.region(),snp_subs(), snp_eve_subs(), snp_gabriel_subs(), snp_fer_subs(), snp_TAGC_subs())
-  # })
-  
-  ## Make Plot
   karyoplot <- reactive({
     validate(need(!is.null(gene.region()), "Please enter a valid gene symbol or SNP ID.")) #Generate a error message when no gene id is input.
+    print(gene.region())
     print("generate karyoplot")
-    make_karyoplot(gene.region(),snp_subs(), snp_gabriel_subs(), snp_fer_subs(),
+    make_karyoplot(gene.region(), snp_subs(), snp_gabriel_subs(), snp_fer_subs(),
                    snp_eve_all_subs(), snp_eve_ea_subs(), snp_eve_aa_subs(), snp_eve_la_subs(), 
                    snp_TAGC_multi_subs(), snp_TAGC_euro_subs(),
                    snp_UKBB_asthma_subs(), snp_UKBB_copd_subs(), snp_UKBB_aco_subs())
@@ -1002,18 +808,11 @@ server <- shinyServer(function(input, output, session) {
   # GR-binding sites within the selected region
   GRbinding_table <- reactive({
     if (!is.null(gene.region())) {
-      gene.sel <- gene.region()
-      # generate GRanges object for gene regions
-      if (gene.sel$strand == -1){
-        gene.sel.gr <- toGRanges(data.frame(chr=gene.sel$Chromosome, start=gene.sel$Start, end=gene.sel$End+20000,genome="hg38"))
-      } else if (gene.sel$strand == 1){
-        gene.sel.gr <- toGRanges(data.frame(chr=gene.sel$Chromosome, start=gene.sel$Start-20000, end=gene.sel$End,genome="hg38"))
-      }
-    # generate GRanges object for GR-binding sites
-    GRbinding_gr <- makeGRangesFromDataFrame(GRbinding[,1:3])
-    overlap_gr <- findOverlaps(GRbinding_gr, gene.sel.gr)
-    row_numbers = queryHits(overlap_gr)
-    GRbinding[row_numbers, ] %>% data.frame()
+      # generate GRanges object for GR-binding sites
+      GRbinding_gr <- makeGRangesFromDataFrame(GRbinding[,1:3])
+      overlap_gr <- findOverlaps(GRbinding_gr, gene.region())
+      row_numbers = queryHits(overlap_gr)
+      GRbinding[row_numbers, ] %>% data.frame()
     }
   })
   
@@ -1232,10 +1031,10 @@ server <- shinyServer(function(input, output, session) {
       dev.off()})
   
   output$cig_fc_download <- downloadHandler(
-    filename= function(){paste0("REALGAR_smoking_forestplot_", graphgene(), ".png")},
+    filename= function(){paste0("REALGAR_pollutant_forestplot_", graphgene(), ".png")},
     content=function(file){
       png(file, width=16, height=plotHeight(data3_cig()), units="in", res=300)
-      print(forestplot_func(data3_cig(),"Smoking Transcriptomic Results for ",curr_gene()))
+      print(forestplot_func(data3_cig(),"Pollutant Transcriptomic Results for ",curr_gene()))
       dev.off()})
   
   output$gene_tracks_download <- downloadHandler(
