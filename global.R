@@ -1,4 +1,3 @@
-
 library(shiny)
 library(shinythemes)
 library(shinyWidgets)
@@ -22,7 +21,7 @@ library(TxDb.Hsapiens.UCSC.hg38.knownGene, quietly = T)
 source("utilities/sql_queries.R")
 source("utilities/meta.R")
 source("utilities/comb_pval.R")
-source("utilities/name_convert.R")
+#source("utilities/name_convert.R")
 source("utilities/forestplots.R")
 source("utilities/karyoplot.R")
 #source("utilities/gviz_gene_track.R")
@@ -38,7 +37,7 @@ tissue_choices <-c("Airway smooth muscle"="ASM", "Bronchial epithelium"="BE", "L
                    "Whole lung"="Lung","Skeletal muscle myotubes"="myotubes","CD4"="CD4", "CD8"="CD8", "MCF10A-Myc" = "MCF10A-Myc","CD3" = "CD3", 
                    "A549" = "A549","Lymphoblastoid cell" = "LCL","Macrophage" = "MACRO", "Alveolar macrophages" = "AM", 
                    "Peripheral blood mononuclear cell"="PBMC","White blood cell"="WBC","Whole blood"="Blood",
-                   "Lymphoblastic leukemia cell" = "chALL","Osteosarcoma U2OS cell" = "U2OS")
+                   "Lymphoblastic leukemia cell" = "chALL","Osteosarcoma U2OS cell" = "U2OS", "WI38 fibroblast"="WI38")
 
 tissue_selected <- c("Airway smooth muscle"="ASM", "Bronchial epithelium"="BE")
 
@@ -74,11 +73,11 @@ gwas_choices <- c("Ferreira"="snp_fer_subs","GABRIEL"="snp_gabriel_subs","GRASP"
                   "EVE all subjects"="snp_eve_all_subs", "EVE African Americans"="snp_eve_aa_subs", "EVE European Americans"="snp_eve_ea_subs", "EVE Latinos"="snp_eve_la_subs",
                   "TAGC Multiancestry"="snp_TAGC_multi_subs", "TAGC European ancestry"="snp_TAGC_euro_subs",
                   "UKBiobank Asthma"="snp_UKBB_asthma_subs", "UKBiobank COPD"="snp_UKBB_copd_subs", "UKBiobank ACO"="snp_UKBB_aco_subs")
-#pval_choices = c("0.05"="normal", "1x10<sup>-5</sup>"="norminal","5x10<sup>-8</sup>"="genomewide")
+#pval_choices = c("0.05"="normal", "1x10<sup>-5</sup>"="nominal","5x10<sup>-8</sup>"="genomewide")
 pval_select <- c("0.05"="normal")
 names(pval_select) = paste0("0.05", stri_dup(intToUtf8(160), 18))
 
-pval_for_select <-  tibble(value=c("normal","norminal","genomewide"),
+pval_for_select <-  tibble(value=c("normal","nominal","genomewide"),
                                label=c("0.05","1x10-5","5x10-8"),
                                html=c("0.05", "1x10<sup>-5</sup>" , "5x10<sup>-8</sup>"))
 pval_for_select[[2]][1] = pval_for_select[[3]][1] <- paste0("0.05", stri_dup(intToUtf8(160), 18))
@@ -95,10 +94,10 @@ pval_for_select[[2]][3] = paste0("5x10-8", stri_dup(intToUtf8(160), 18))
 all_genes <- readRDS("realgar_data/gene_symbol_coords_hg38.RDS")
 gene_list <- as.vector(all_genes$symbol)
 
-#Gene choices
-genec <- read_feather("realgar_data/Sig_gene_list.feather")
-gene_choices <- as.vector(genec$V1)
-rm(genec)
+#Gene choices (Not in use)
+#genec <- read_feather("realgar_data/Sig_gene_list.feather")
+#gene_choices <- as.vector(genec$V1)
+#rm(genec)
 
 ####################
 ## READ IN FILES ##
@@ -122,6 +121,9 @@ Dataset_Info$Report <- as.character(c("QC"))
 ##BA_PDE dataset ---
 BA_PDE_Info <- Dataset_Info %>% dplyr::filter(Asthma == "BA_PDE")
 
+##ChIP-Seq dataset
+chipseq_dataset <- read_feather("realgar_data/realgar_ChIPSeq_datasets.feather")
+
 ####################
 ## GWAS SNP data ##
 ####################
@@ -129,7 +131,7 @@ BA_PDE_Info <- Dataset_Info %>% dplyr::filter(Asthma == "BA_PDE")
 #load info for gene tracks: gene locations, TFBS, SNPs, etc.
 
 #from feather files ---
-chrom_bands <- read_feather("realgar_data/chrom_bands.feather") #chromosome band info for ideogram - makes ideogram load 25 seconds faster
+# chrom_bands <- read_feather("realgar_data/chrom_bands.feather") #chromosome band info for ideogram - makes ideogram load 25 seconds faster
 
 ####################
 ## GWAS SNP data ##
