@@ -73,6 +73,7 @@ gwas_choices <- c("Ferreira"="snp_fer_subs","GABRIEL"="snp_gabriel_subs","GRASP"
                   "EVE all subjects"="snp_eve_all_subs", "EVE African Americans"="snp_eve_aa_subs", "EVE European Americans"="snp_eve_ea_subs", "EVE Latinos"="snp_eve_la_subs",
                   "TAGC Multiancestry"="snp_TAGC_multi_subs", "TAGC European ancestry"="snp_TAGC_euro_subs",
                   "UKBiobank Asthma"="snp_UKBB_asthma_subs", "UKBiobank COPD"="snp_UKBB_copd_subs", "UKBiobank ACO"="snp_UKBB_aco_subs")
+gwas_selected <- c("GRASP"="snp_subs", "EVE all subjects"="snp_eve_all_subs")
 #pval_choices = c("0.05"="normal", "1x10<sup>-5</sup>"="nominal","5x10<sup>-8</sup>"="genomewide")
 pval_select <- c("0.05"="normal")
 names(pval_select) = paste0("0.05", stri_dup(intToUtf8(160), 18))
@@ -123,6 +124,7 @@ BA_PDE_Info <- Dataset_Info %>% dplyr::filter(Asthma == "BA_PDE")
 
 ##ChIP-Seq dataset
 chipseq_dataset <- read_feather("realgar_data/realgar_ChIPSeq_datasets.feather")
+
 
 ####################
 ## GWAS SNP data ##

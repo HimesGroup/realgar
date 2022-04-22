@@ -50,7 +50,7 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                                                                                            br()),
                                                                                     column(1, HTML("<br>")),
                                                                                     column(2,
-                                                                                          fluidRow(h4(pickerInput(inputId="which_SNPs", label=strong("GWAS Results"), choices = gwas_choices, selected=c("GRASP"="snp_subs", "UKBiobank Asthma"="snp_UKBB_asthma_subs"), multiple = TRUE,
+                                                                                          fluidRow(h4(pickerInput(inputId="which_SNPs", label=strong("GWAS Results"), choices = gwas_choices, selected=gwas_selected, multiple = TRUE,
                                                                                                                   options = list(`actions-Box` = TRUE, `none-Selected-Text` = "None",`selected-Text-Format`= "count")))), br() # change mk
                                                                                           )
                                                                       )),
@@ -156,9 +156,10 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                                                                                             column(12, withSpinner(plotOutput("karyoPlot",height = "1300px",width="1200px")),color= "#9E443A",align="center"), br(),
                                                                                             column(12, 
                                                                                                    fluidRow(
-                                                                                                     column(4, downloadButton(outputId="gene_tracks_download", label="Download gene track figure"), align="center"),
+                                                                                                     #column(4, downloadButton(outputId="gene_tracks_download", label="Download gene track figure"), align="center"),
                                                                                                      column(4, downloadButton(outputId="SNP_data_download", label="Download GWAS results"), align="center"),
-                                                                                                     column(4, downloadButton(outputId="GRbinding_data_download", label="Download GR-binding results"), align="center"))),
+                                                                                                     column(4, downloadButton(outputId="GRbinding_data_download", label="Download GR-binding results"), align="center"),
+                                                                                                     column(4, downloadButton(outputId="GRE_data_download", label="Download putative GRE motifs"), align="center"))),
                                                                                             column(12, fluidRow(br(), br(), br())))  #tabPanel #1200px
                                                                                    
                                                                                    

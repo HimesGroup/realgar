@@ -815,7 +815,19 @@ server <- shinyServer(function(input, output, session) {
       GRbinding[row_numbers, ] %>% data.frame()
     }
   })
-  
+
+  # GRE motifs within the selected region
+  GRE_table <- reactive({
+    if (!is.null(gene.region())) {
+      # find overlaps between GRanges object for GRE motifs and gene region
+      overlap_gre <- findOverlaps(gre, gene.region())
+      row_numbers = queryHits(overlap_gre)
+      gre_tb <- gre[row_numbers, ] %>% data.frame()
+      names(gre_tb)[1] <- "chromosome"
+      gre_tb[,1:3]
+    }
+  })  
+    
   ###############################
   ##   Gene Expression Levels  ##
   ###############################
@@ -1037,15 +1049,15 @@ server <- shinyServer(function(input, output, session) {
       print(forestplot_func(data3_cig(),"Pollutant Transcriptomic Results for ",curr_gene()))
       dev.off()})
   
-  output$gene_tracks_download <- downloadHandler(
-      filename= function(){paste0("REALGAR_gene_tracks_", graphgene(), ".png")},
-      content=function(file){
-          png(file, width=16, height=12, units="in", res=300)
-          print(make_karyoplot(gene.region(),snp_subs(), snp_gabriel_subs(), snp_fer_subs(),
-                               snp_eve_all_subs(), snp_eve_ea_subs(), snp_eve_aa_subs(), snp_eve_la_subs(), 
-                               snp_TAGC_multi_subs(), snp_TAGC_euro_subs(),
-                               snp_UKBB_asthma_subs(), snp_UKBB_copd_subs(), snp_UKBB_aco_subs()))
-          dev.off()})
+#  output$gene_tracks_download <- downloadHandler(
+#      filename= function(){paste0("REALGAR_gene_tracks_", graphgene(), ".png")},
+#      content=function(file){
+#          png(file, width=16, height=12, units="in", res=300)
+#          print(make_karyoplot(gene.region(),snp_subs(), snp_gabriel_subs(), snp_fer_subs(),
+#                               snp_eve_all_subs(), snp_eve_ea_subs(), snp_eve_aa_subs(), snp_eve_la_subs(), 
+#                               snp_TAGC_multi_subs(), snp_TAGC_euro_subs(),
+#                               snp_UKBB_asthma_subs(), snp_UKBB_copd_subs(), snp_UKBB_aco_subs()))
+#          dev.off()})
   
   output$table_download <- downloadHandler(filename = function() {paste0('REALGAR_expression_summary_table_',graphgene(), '.csv')},
                                            content = function(file) {write.csv(do.call(rbind, list(tableforgraph_Asthma(), tableforgraph_GC(), tableforgraph_cig())), file, row.names=FALSE)})
@@ -1054,7 +1066,9 @@ server <- shinyServer(function(input, output, session) {
                                               content = function(file) {write.csv(snp_data(), file, row.names=FALSE)})
   output$GRbinding_data_download <- downloadHandler(filename = function() {paste0('REALGAR_GR_binding_site_results_',graphgene(), '.csv')},
                                                     content = function(file) {write.csv(GRbinding_table(), file, row.names=FALSE)})
-  
+  output$GRE_data_download <- downloadHandler(filename = function() {paste0('REALGAR_GRE_motif_results_',graphgene(), '.csv')},
+                                                    content = function(file) {write.csv(GRE_table(), file, row.names=FALSE)})
+
   #download gene boxplot
   output$downloadPic <- downloadHandler(
     filename = function() {paste(input$tissue_te, "_", curr_gene_te(), "_", Sys.Date(), '.png', sep='')},
