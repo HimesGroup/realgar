@@ -19,7 +19,7 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                           " and GWAS of interest. The 'Omics Results’ tab allows you to visualize and ", 
                           "download results for the studies matching your selection criteria. ",
                           "The ‘Datasets loaded’ tab provides more information about the datasets selected. ",
-                          "The ‘References’ tab provides additional information about the app."),br(),                        
+                          "The ‘About’ tab provides additional information about the app."),br(),                        
                         navbarPage( "", 
                                     tabPanel(h4(strong("Omics Results"), style = "color: #9E443A;"),
                                              wellPanel(fluidRow(align = "left",
@@ -80,7 +80,7 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                                                                                               HTML(paste0("(e.g., correct for tests in 25,000 genes, or a threshold of 2x10",tags$sup(-6),". ")),
                                                                                               "For the rank-based method, an analytic rank product is provided instead of a permutated empirical p-value, ",
                                                                                               "so we suggest that users refer to the rank score when prioritizing the genes for functional validation. ",
-                                                                                              "More information can be found in the 'Datasets loaded' and 'References' tabs."),
+                                                                                              "More information can be found in the 'Datasets loaded' and 'About' tabs."),
                                                                                             fluidRow(column(12, downloadButton(outputId="table_download", label="Download gene expression results"), align="center")),
                                                                                             br(),
                                                                                             tabsetPanel(
@@ -132,7 +132,7 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                                                                                               a("GTEx V8 release", href="https://gtexportal.org/home/datasets", target="_blank"),
                                                                                               ". Glucocorticoid  response element (GRE) motifs within Glucocorticoid Receptor (GR) binding sites were identified with",
                                                                                               a("the FIMO tool", href="https://meme-suite.org/meme/doc/fimo.html", target="_blank"),
-                                                                                              ". More information can be found in the 'Datasets loaded' and 'References' tabs."),br(),
+                                                                                              ". More information can be found in the 'Datasets loaded' and 'About' tabs."),br(),
                                                                                             column(12,
                                                                                                    fluidRow(
                                                                                                      tags$head(
@@ -199,25 +199,43 @@ ui <- shinyUI(fluidPage(theme = shinytheme("lumen"),
                                                                     padding: 1px;
                                                                   }
                                                               "))),
-                                    
                                                  
-                                                 tabPanel(h4(strong("References"), style = "color: #9E443A;"),
-                                                   p("This app was created with the RStudio ", a("Shiny", href="https://www.rstudio.com/shiny", target="_blank"), "R package",
-                                                     "Full code is available in ", a("GitHub.", href="https://github.com/HimesGroup/realgar", target="_blank"),
-                                                     "Contributors: Maya Shumyatcher, Mengyuan Kan, Avantika Diwadkar and Blanca Himes at the ", a("Himes Lab.", href="https://himeslab.org/", target="_blank")), br(),
-                                                   p("If you use REALGAR in your research, please cite the following papers:"),
-                                                   p("Shumyatcher M, Hong R, Levin J, Himes BE.", a("Disease-Specific Integration of Omics Data to Guide Functional Validation of Genetic Associations.",href="REALGAR_resubmission_07.06.2017_FINAL_Corrected.pdf", target="_blank"),"AMIA Annu Symp Proc. 2018;2017:1589–1596. 
+                                    tabPanel(h4(strong("About"), style = "color: #9E443A;"),
+                                             p("This Rstudio ", a("Shiny", href="https://www.rstudio.com/shiny", target="_blank"), " app was created by members of the ",
+                                               a("Himes Lab", href="https://himeslab.org/", target="_blank"), ".",
+                                               "Full code is available in ", a("GitHub", href="https://github.com/HimesGroup/realgar", target="_blank"), "."), br(),
+                                             h4("Contributors"),
+                                             p("Coding and design by Maya Shumyatcher, Mengyuan Kan, Avantika Diwadkar and Blanca Himes"), 
+                                             p("Analysis of individual datasets by Avantika Diwadkar, Jaehyun Joo, Mengyuan Kan, Nisha Narayanan, Supriya Saxena, Haoyue Shuai, Maya Shumyatcher, Gabriel Soliman"), br(),
+                                             h4("References"),
+                                             p("If you use REALGAR in your research, please cite the following papers:"),
+                                             p("Kan M, Diwadkar AR, Saxena S, Shuai H, Joo J, Himes BE.", a("REALGAR: a web app of integrated respiratory omics data.", href="REALGAR_bioinformatics.pdf", target="blank"), "Bioinformatics. 2022 Sep 15;38(18):4442-4445.(PMID:",a("35863045",href="https://www.ncbi.nlm.nih.gov/pubmed/35863045", target="_blank"), ")."),
+                                             p("Shumyatcher M, Hong R, Levin J, Himes BE.", a("Disease-Specific Integration of Omics Data to Guide Functional Validation of Genetic Associations.",href="REALGAR_resubmission_07.06.2017_FINAL_Corrected.pdf", target="_blank"),"AMIA Annu Symp Proc. 2018;2017:1589–1596. 
                         Published 2018 Apr 16. (PMID:",a("29854229).",href="https://www.ncbi.nlm.nih.gov/pubmed/29854229", target="_blank")), br(),
-                                                   p("Analysis of gene expression microarray and RNA-Seq data was performed as described in this paper:"),
-                                                   p("Kan M, Shumyatcher M, Diwadkar A, Soliman G, Himes BE.", a("Integration of Transcriptomic Data Identifies Global and 
+                                             p("Analysis of gene expression microarray and RNA-Seq data was performed as described in this paper:"),
+                                             p("Kan M, Shumyatcher M, Diwadkar A, Soliman G, Himes BE.", a("Integration of Transcriptomic Data Identifies Global and 
                          Cell-Specific Asthma-Related Gene Expression Signatures.",href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6371257/pdf/2973744.pdf",target="_blank"),"AMIA Annu Symp Proc. 2018;2018:1338–1347. 
                          Published 2018 Dec 5. (PMID:", a("30815178)",href="https://www.ncbi.nlm.nih.gov/pubmed/30815178", target="_blank"),
-                                                     ". You can refer to the code",a("here.",href="https://github.com/HimesGroup/raved", target="_blank")), br(),
-                                                   p("Analysis of ChIP-Seq data was performed as described in this paper:"),
-                                                   p("Diwadkar AR, Kan M, Himes BE.", a("Facilitating Analysis of Publicly Available ChIP-Seq Data for Integrative Studies.",href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7153109/pdf/3200301.pdf",target="_blank"),"AMIA Annu Symp Proc. 2019;2019:371-379. 
+                                               ". You can refer to the code",a("here.",href="https://github.com/HimesGroup/raved", target="_blank")), br(),
+                                             p("Analysis of ChIP-Seq data was performed as described in this paper:"),
+                                             p("Diwadkar AR, Kan M, Himes BE.", a("Facilitating Analysis of Publicly Available ChIP-Seq Data for Integrative Studies.",href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7153109/pdf/3200301.pdf",target="_blank"),"AMIA Annu Symp Proc. 2019;2019:371-379. 
                          Published 2020 Mar 4. (PMID:", a("32308830)",href="https://www.ncbi.nlm.nih.gov/pubmed/32308830", target="_blank"),
-                                                     ". You can refer to the code",a("here.",href="https://github.com/HimesGroup/brocade", target="_blank")), br()
-                                                   )),
+                                               ". You can refer to the code",a("here.",href="https://github.com/HimesGroup/brocade", target="_blank")), br(),
+                                             h4("Updates"),
+                                             p("2022-01 Added Gene-expression levels tab"),
+                                             p("2021-12 Redesigned integrative gene tracks"),
+                                             p("2021-08 Added initial PAH and PM transcriptomic datasets"),
+                                             p("2020-09 Incorporated UKBB asthma and COPD GWAS results"),
+                                             p("2020-08 Added initial cigarette and e-cig transcriptomic datasets"),
+                                             p("2019-08 Added initial PDE inhibitor transcriptomic datasets"),
+                                             p("2019-01 Incorporated glucocorticoid receptor ChIP-Seq datasets"),
+                                             p("2018-08 Added initial Beta2-agonist transcriptomic datasets"),
+                                             p("2018-02 Incorporated TAGC and Ferreira asthma GWAS results"),
+                                             p("2018-01 Added reactive meta-analysis scores for transcriptomic datasets"),
+                                             p("2017-08 Published initial version of REALGAR"),
+                                             br(), br(), br()
+                                             )
+                                    ),
                                       tags$style(HTML("
                                         #.navbar-default .navbar-brand {color:white;}
                                         #.navbar-default .navbar-brand:hover {color:white;}

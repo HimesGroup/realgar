@@ -22,7 +22,6 @@
 
 #GRE data
 gre <- toGRanges(readRDS("realgar_data/gre.RDS")) 
-#gre$V6 <- inferno(50)[as.numeric(cut(gre$V5,breaks = 50))]
 
 #EQTL data
 eqtl_lung <- toGRanges(readRDS("realgar_data/eQTL/Lung.RDS"))
