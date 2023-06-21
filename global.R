@@ -74,9 +74,13 @@ gwas_choices <- c("Ferreira"="snp_fer_subs","GABRIEL"="snp_gabriel_subs","GRASP"
                   "TAGC Multiancestry"="snp_TAGC_multi_subs", "TAGC European ancestry"="snp_TAGC_euro_subs",
                   "UKBiobank Asthma"="snp_UKBB_asthma_subs", "UKBiobank COPD"="snp_UKBB_copd_subs", "UKBiobank ACO"="snp_UKBB_aco_subs")
 gwas_selected <- c("GRASP"="snp_subs", "EVE all subjects"="snp_eve_all_subs")
-#pval_choices = c("0.05"="normal", "1x10<sup>-5</sup>"="nominal","5x10<sup>-8</sup>"="genomewide")
-pval_select <- c("0.05"="normal")
-names(pval_select) = paste0("0.05", stri_dup(intToUtf8(160), 18))
+#gwas_selected <- c("UKBiobank Asthma"="snp_UKBB_asthma_subs")
+
+#pval_select <- c("0.05"="normal")
+#names(pval_select) = paste0("0.05", stri_dup(intToUtf8(160), 18))
+
+pval_select <- c("1x10-5"="nominal")
+names(pval_select) = paste0("1x10-5", stri_dup(intToUtf8(160), 18))
 
 pval_for_select <-  tibble(value=c("normal","nominal","genomewide"),
                                label=c("0.05","1x10-5","5x10-8"),
@@ -153,18 +157,10 @@ sras <- read_feather("transcriptomics/asthmagenes_deseq2/lcte_dataset_info_asm.f
 all_genes_te <- read_feather("transcriptomics/lcte_gene_names.feather") %>% tibble::as_tibble()
 unfiltered_genes <- read_feather("transcriptomics/lcte_sleuth_unfiltered_genes.feather") %>% tibble::as_tibble()
 
-rnaseq_choices <- c("SRP033351 (airway smooth muscle)" = "SRP033351", "SRP043162 (airway smooth muscle)" = "SRP043162","SRP098649 (airway smooth muscle)" = "SRP098649",
-                    "SRP157114 (bronchial epithelium)" = "SRP157114", "SRP237772 (bronchial epithelium)" = "SRP237772", "SRP216947 (bronchial epithelium)" = "SRP216947",
-                    "SRP005411 (small airway epithelium)"="SRP005411", "SRP277255 (bronchial epithelium)"="SRP277255")
-
-#Deseq2 results : log2FC, padj and conditions- for datatable 
-# de <- list()
-# #Deseq2 count results - by gene for plots
-# tpms <- list()
-# for (study in unname(rnaseq_choices)) {
-#   de[[study]] <- read_feather(paste0("transcriptomics/asthmagenes_deseq2/", study, "/", study, "_de.feather")) %>% tibble::as_tibble()
-#   tpms[[study]]  <- read_feather(paste0("transcriptomics/asthmagenes_deseq2/", study, "/", study, "_pheno+counts_updated.feather")) %>% tibble::as_tibble()
-# }
+# create rnaseq_choices vector from sras
+tissue_long <- unname(sapply(sras$Tissue, function(x){names(tissue_choices[tissue_choices==x])}))
+studies <- paste0(sras$SRA_ID, " (", tissue_long, ")")
+rnaseq_choices <- setNames(sras$SRA_ID, studies)
 
 # make a list of gene symbols in all datasets for checking whether gene symbol entered is valid - used later on
 #deseq2_filtered_genes <- unlist(lapply(unname(rnaseq_choices), function(study)de[[study]][,"gene_symbol"])) %>% unique()

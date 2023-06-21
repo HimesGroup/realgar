@@ -59,7 +59,6 @@ server <- shinyServer(function(input, output, session) {
         if (nrow(all_matches)>1) {
           current <- join_gene_snp(all_matches) # this function will select one gene that nearest by distance to selected snp
         }
-        print(current)
       } else { #input is not a valid SNP ID
         current <- "not_in_snp_db"
       }
@@ -208,7 +207,7 @@ server <- shinyServer(function(input, output, session) {
       message <- "Please enter a valid gene symbol or SNP ID."
     }
     if (curr_gene() == "not_in_snp_db") {
-      message <- "The input SNP ID is not present in the current datasets"
+      message <- "The gene symbol provided does not contain results in the selected datasets, or the SNP is not within 20kb of a gene boundary."
     }
     message
   })  
@@ -540,11 +539,11 @@ server <- shinyServer(function(input, output, session) {
   }) 
   
   
-  output$forestplot_asthma = renderPlot({forestplot_asthma()}, height=getHeightAsthma)
+  output$forestplot_asthma = renderPlot({print("output asthma forestplot"); forestplot_asthma()}, height=getHeightAsthma)
   
-  output$forestplot_GC = renderPlot({forestplot_GC()}, height=getHeightGC)
+  output$forestplot_GC = renderPlot({print("output GC forestplot"); forestplot_GC()}, height=getHeightGC)
   
-  output$forestplot_cig = renderPlot({forestplot_cig()}, height=getHeightcig)
+  output$forestplot_cig = renderPlot({print("output smoking forestplot"); forestplot_cig()}, height=getHeightcig)
   
   ###############################
   ## Gene, SNP and TFBS tracks ##
@@ -784,7 +783,7 @@ server <- shinyServer(function(input, output, session) {
   }
    
   gene.region <- reactive({
-    validate(need(curr_gene() != "", "Please enter a gene symbol or SNP ID.")) #Generate a error message when no gene id is input.
+    validate(need(check_input_message()=="", check_input_message())) #Generate a error message when no gene id is input.
     region <- all_genes %>% dplyr::filter(symbol == curr_gene()) 
     #region_split <- strsplit(x=gsub("\\s","",region$Pos), split="-|:| ")[[1]]
     if (nrow(region) > 0){
@@ -793,8 +792,20 @@ server <- shinyServer(function(input, output, session) {
   })
   
   ## Make Plot
-  karyoplot <- reactive({
-    validate(need(!is.null(gene.region()), "Please enter a valid gene symbol or SNP ID.")) #Generate a error message when no gene id is input.
+  # karyoplot <- reactive({
+  #   validate(need(check_input_message()=="", check_input_message())) #Generate a error message when no gene id is input.
+  #   print(gene.region())
+  #   print("generate karyoplot")
+  #   make_karyoplot(gene.region(), snp_subs(), snp_gabriel_subs(), snp_fer_subs(),
+  #                  snp_eve_all_subs(), snp_eve_ea_subs(), snp_eve_aa_subs(), snp_eve_la_subs(), 
+  #                  snp_TAGC_multi_subs(), snp_TAGC_euro_subs(),
+  #                  snp_UKBB_asthma_subs(), snp_UKBB_copd_subs(), snp_UKBB_aco_subs())
+  # })
+  
+  #observe({output$karyoPlot <- renderPlot({karyoplot()})})
+
+  output$karyoPlot <- renderPlot({
+    validate(need(check_input_message()=="", check_input_message())) #Generate a error message when no gene id is input.
     print(gene.region())
     print("generate karyoplot")
     make_karyoplot(gene.region(), snp_subs(), snp_gabriel_subs(), snp_fer_subs(),
@@ -803,8 +814,7 @@ server <- shinyServer(function(input, output, session) {
                    snp_UKBB_asthma_subs(), snp_UKBB_copd_subs(), snp_UKBB_aco_subs())
   })
   
-  observe({output$karyoPlot <- renderPlot({karyoplot()})})
-  
+    
   # GR-binding sites within the selected region
   GRbinding_table <- reactive({
     if (!is.null(gene.region())) {
@@ -837,9 +847,9 @@ server <- shinyServer(function(input, output, session) {
   curr_gene_te <- reactive(curr_gene())
   
   #used to make situation-specific error messages
-  in_all <- reactive({if (!(curr_gene_te() %in% all_genes_te$name)) {FALSE} else {TRUE}})  # wrong symbol was input
+  #in_all <- reactive({if (!(curr_gene_te() %in% all_genes_te$name)) {FALSE} else {TRUE}})  # wrong symbol was input
   in_unfiltered <- reactive({if ((curr_gene() %in% all_genes_te$name) & !(curr_gene_te() %in% unfiltered_genes$x)) {FALSE} else {TRUE}}) # gene not in database
-  in_deseq2_filtered <- reactive({if ((curr_gene_te() %in% unfiltered_genes$x) & !(curr_gene_te() %in% deseq2_filtered_genes)) {FALSE} else {TRUE}}) # didn't pass sleuth filter
+  #in_deseq2_filtered <- reactive({if ((curr_gene_te() %in% unfiltered_genes$x) & !(curr_gene_te() %in% deseq2_filtered_genes)) {FALSE} else {TRUE}}) # didn't pass sleuth filter
   
   output$gene_te <- renderPrint({
     curr_gene_te()
@@ -861,6 +871,7 @@ server <- shinyServer(function(input, output, session) {
   
   #generate faceted boxplot for the gene selected, using kallisto TPMs
   curr_data_te_tb <- reactive({
+    print("convert count matrix")
     x <- sras %>% 
       filter(SRA_ID == input$tissue_te) %$% 
       SRA_ID
@@ -877,15 +888,16 @@ server <- shinyServer(function(input, output, session) {
   })
   
   getGeneBoxPlot <-reactive({
-    validate(need(curr_gene_te() != "", "Please enter a gene id")) # no gene symbol was input
-    validate(need(in_all() != FALSE, "Please enter a valid gene id.")) # invalid gene symbol was input
-    validate(need(in_unfiltered() != FALSE, "This gene is not in the reference database.")) # gene not in database
-    validate(need(in_deseq2_filtered() != FALSE, "Gene did not pass our DESeq2 filter (total counts should be greater than 10).")) # gene did not pass sleuth filter
+    #validate(need(curr_gene_te() != "", "Please enter a gene id")) # no gene symbol was input
+    #validate(need(in_all() != FALSE, "Please enter a valid gene id.")) # invalid gene symbol was input
+    validate(need(check_input_message()=="", check_input_message()))
+    validate(need(in_unfiltered() != FALSE, "This gene is not in RNA-Seq datasets.")) # gene not in database
+    #validate(need(in_deseq2_filtered() != FALSE, "Gene did not pass our DESeq2 filter (total counts should be greater than 10).")) # gene did not pass sleuth filter
     
-    # This may be because less than , or all of the gene .
+    print("generate gene-level boxplots")
     curr_data_te <- curr_data_te_tb()
     #curr_data_te <- tpms[[x]] %>% filter(gene_symbol == curr_gene_te()) 
-    in_filtered <- reactive({if (nrow(curr_data_te) == 0) {FALSE} else {TRUE}}) # didn't pass sleuth filter
+    #in_filtered <- reactive({if (nrow(curr_data_te) == 0) {FALSE} else {TRUE}}) # didn't pass sleuth filter
     
     #gene plot initialize
     if (nrow(curr_data_te) > 0 & length(unique(curr_data_te$Donor))<=10) { # this iteration of curr_data has already been filtered to only have average_tpm > 1, with #donor<=10
@@ -937,7 +949,9 @@ server <- shinyServer(function(input, output, session) {
   })
   
   #output boxplot
-  output$GeneBoxPlot <- renderPlot(width = 650, height = 500, {
+  output$GeneBoxPlot <- renderPlot(
+    width = 650, height = 500, {
+      print("output gene-level boxplots")
     # if (!is.null(input$debugcode) && (input$debugcode == "geneBoxPlot")) {
     #   browser()
     # }
@@ -947,11 +961,15 @@ server <- shinyServer(function(input, output, session) {
   
   #output accompanying sleuth results
   output$table_title <- renderUI({
+    validate(need(check_input_message()=="", check_input_message()))
+    validate(need(in_unfiltered() != FALSE, "This gene is not in RNA-Seq datasets.")) # gene not in database
+    #validate(need(in_deseq2_filtered() != FALSE, "Gene did not pass our DESeq2 filter (total counts should be greater than 10).")) # gene did not pass sleuth filter
     title_string <- paste0("Differential Expression Results for ", curr_gene_te())
     HTML(title_string)
   })
   
   output$diffResults <- renderDataTable({
+    print("combine count and DE results")
     # if (!is.null(input$debugcode) && (input$debugcode == "diffResults")) {
     #   browser()
     # }
@@ -977,6 +995,8 @@ server <- shinyServer(function(input, output, session) {
       de_df_temp <- get_query_DE(paste0(x, "_de"), gene_id)
       de_df <- rbind(de_df, de_df_temp)
     }
+    
+    validate(need(nrow(de_df)>0, "Gene did not pass our DESeq2 filter (total counts should be greater than 10)."))  # gene did not pass sleuth filter
     
     # modify DE results from wide to long
     de_df <- de_df %>%
