@@ -26,7 +26,7 @@ PMID: [29854229](https://www.ncbi.nlm.nih.gov/pubmed/29854229)
 Analysis of gene expression microarray and RNA-Seq data was performed as described in this paper:
 
 Kan M, Shumyatcher M, Diwadkar A, Soliman G, Himes BE. **Integration of Transcriptomic Data Identifies Global and Cell-Specific Asthma-Related Gene Expression Signatures**. *AMIA Annu Symp Proc*. 2018;2018:1338–1347. 
-PMID: [30815178)[https://www.ncbi.nlm.nih.gov/pubmed/30815178
+PMID: [30815178](https://www.ncbi.nlm.nih.gov/pubmed/30815178
  
 Analysis of ChIP-Seq data was performed as described in this paper:
 
