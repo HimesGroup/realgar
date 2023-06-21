@@ -13,3 +13,21 @@ REALGAR is an integrated resource of disease-specific and tissue-specific result
 ### Dependencies
 
 REALGAR was created using RStudio's Shiny.  To run REALGAR locally, R should be available.  The following packages should be installed: shiny, shinythemes, data.table, dplyr, DT, feather, ggplot2, karyoploteR, lattice, stringi, stringr, tidyverse, tidyr, TxDb.Hsapiens.UCSC.hg38.knownGene, and viridis.
+
+### Citations
+
+If you use REALGAR in your research, please cite the following papers:
+
+Kan M, Diwadkar AR, Saxena S, Shuai H, Joo J, Himes BE. **REALGAR: a web app of integrated respiratory omics data**. *"Bioinformatics*. 2022 Sep 15;38(18):4442-4445. PMID: [35863045](https://www.ncbi.nlm.nih.gov/pubmed/35863045)
+
+Shumyatcher M, Hong R, Levin J, Himes BE. **Disease-Specific Integration of Omics Data to Guide Functional Validation of Genetic Associations**. *AMIA Annu Symp Proc*. 2018;2017:1589–1596. 
+PMID: [29854229](https://www.ncbi.nlm.nih.gov/pubmed/29854229)
+
+Analysis of gene expression microarray and RNA-Seq data was performed as described in this paper:
+
+Kan M, Shumyatcher M, Diwadkar A, Soliman G, Himes BE. **Integration of Transcriptomic Data Identifies Global and Cell-Specific Asthma-Related Gene Expression Signatures**. *AMIA Annu Symp Proc*. 2018;2018:1338–1347. 
+PMID: [30815178)[https://www.ncbi.nlm.nih.gov/pubmed/30815178
+ 
+Analysis of ChIP-Seq data was performed as described in this paper:
+
+Diwadkar AR, Kan M, Himes BE. **Facilitating Analysis of Publicly Available ChIP-Seq Data for Integrative Studies**. *AMIA Annu Symp Proc*. 2019;2019:371-379. PMID:[32308830](https://www.ncbi.nlm.nih.gov/pubmed/32308830)
